@@ -16,7 +16,8 @@ import Data.Data            ( Data, Typeable )
 import Data.Acid            ( AcidState, Query, Update, makeAcidic, openLocalState )
 import Data.Acid.Advanced   ( query', update' )
 import Data.SafeCopy        ( base, deriveSafeCopy )
-
+import Data.Aeson
+import qualified Data.ByteString.Lazy.Char8 as B
 
 data WorkPatronage = WorkPatronage { --validate/make
   work::Integer, 
@@ -26,6 +27,11 @@ data WorkPatronage = WorkPatronage { --validate/make
   revenueGenerated::Integer
   --performedOver::FiscalPeriod
 } deriving (Show)
+
+instance ToJSON WorkPatronage where
+  toJSON (WorkPatronage{work=w,skillWeightedWork=sw,seniority=sn,quality=q,
+			revenueGenerated=r}) = 
+	object ["work" .= w, "skillWeightedWork" .= sw]
 
 data PatronageWeights = PatronageWeights {
   workw::Rational,
@@ -147,10 +153,12 @@ patronageMethod =
     wages1 <- lookText "wages1"
     hours2 <- lookText "hours2"
     wages2 <- lookText "wages2"
+    let p0 = WorkPatronage{work=10,skillWeightedWork=20,seniority=2,quality=4,
+				revenueGenerated=4}
     --let p1 = WorkPatronage{work=read $ unpack hours1, revenue=read $ unpack wages1}
     --let p2 = WorkPatronage{work=read $ unpack hours2, revenue=read $ unpack wages2}
     ok $ toResponse $
-       show $ hours1--patronageTotal [p1, p2]
+       show $ B.unpack $ encode p0 -- hours1 patronageTotal [p1, p2] 
 
 --capaApp :: ServerPart Response
 capaApp ref = 
