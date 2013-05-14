@@ -1,0 +1,10 @@
+name:		Try
+version: 	0.0
+build-type:	Simple
+cabal-version:  >= 1.2
+
+executable pgm1 
+  build-depends:	base, happstack-lite, blaze-html, text, 
+                        containers, mtl, acid-state, safecopy, aeson
+  hs-source-dirs:	.
+  main-is:		capa.hs
