@@ -214,18 +214,3 @@ main = do
    x <- openLocalState g0
    serve Nothing $ capaApp x
 
-
-
-{-
-main =
-  let 
-      e1 = MemberEquityAction{actionType=BuyIn,amount=1000,performedOn=20,resultOf=1}
-      e2 = 
-        MemberEquityAction{actionType=AllocatePatronageRebate,amount=1000,
-		performedOn=20,resultOf=1}
-      m1 = Member{firstName="m1"}
-      m2 = Member{firstName="m2"}
-      rs = FinancialResults{over=10,surplus=3000}
-  in do 
-    putStrLn $ show $ allMemberEquity $ M.fromList [(m1,[e1,e2]), (m2,[e1])]
--}
