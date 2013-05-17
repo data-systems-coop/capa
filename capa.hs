@@ -18,6 +18,7 @@ import Data.Acid.Advanced   ( query', update' )
 import Data.SafeCopy        ( base, deriveSafeCopy )
 import Data.Aeson
 import qualified Data.ByteString.Lazy.Char8 as B
+import qualified Data.List as L
 
 data WorkPatronage = WorkPatronage { --validate/make
   work::Integer, 
@@ -26,7 +27,7 @@ data WorkPatronage = WorkPatronage { --validate/make
   quality::Integer,
   revenueGenerated::Integer
   --performedOver::FiscalPeriod
-} deriving (Show)
+} deriving (Show, Eq, Ord, Data, Typeable)
 
 instance ToJSON WorkPatronage where
   toJSON (WorkPatronage{work=w,skillWeightedWork=sw,seniority=sn,quality=q,
@@ -39,7 +40,7 @@ data PatronageWeights = PatronageWeights {
   seniorityw::Rational,
   qualityw::Rational,
   revenueGeneratedw::Rational
-} deriving (Show)
+} deriving (Show, Eq, Ord, Data, Typeable)
 
 data MemberEquityAction = MemberEquityAction {
   actionType::EquityActionType,
@@ -62,7 +63,7 @@ data EquityActionType =
      
 data Member = Member {
   firstName::String
-} deriving (Show, Eq, Ord)
+} deriving (Show, Eq, Ord, Data, Typeable)
 
 data FinancialResults = FinancialResults { 
   over::Integer, --FiscalPeriod  
@@ -112,39 +113,47 @@ allocateEquityFor FinancialResults{over=ov,surplus=sr} ps pw =
 allMemberEquity = 
   M.map (sum . map amount)
 
---parse from json to values, output to json
-
 --date representation
 
 --put /member firstName=<name>
 --get /members
 --put /patronage/calcMethod/<method name> workw=<..> & ...
---put /member/<id>/patronage/<fiscalPeriod> work=<...> & 
---post /equityAllocation ? surplus=<...>
 --put /member/equityAction  actionType=<...> & ...
 
 --postgresql db
 
 {- state??  members. method + weights. mem->patronage -}
-data Globals = Globals Integer
-  deriving (Show, Eq, Ord, Data, Typeable)
+data Globals = Globals { 
+  members :: [Member],
+  calcMethod :: (String, PatronageWeights),
+  patronage :: M.Map Member WorkPatronage
+} deriving (Show, Eq, Ord, Data, Typeable)
 
 $(deriveSafeCopy 0 'base ''Globals)
+$(deriveSafeCopy 0 'base ''Member)
+$(deriveSafeCopy 0 'base ''PatronageWeights)
+$(deriveSafeCopy 0 'base ''WorkPatronage)
 
-incIt :: Integer -> Update Globals Integer
-incIt n = 
-  do Globals i <- get
-     let newn = i + n
-     put $ Globals newn
-     return newn
+putIt :: Globals -> Update Globals Globals
+putIt g = 
+  do --g@Globals{members=ms,calcMethod=m,patronage=p} <- get
+     --let newMem = Member $ show n
+     --put $ g{members = ms ++ [newMem]}
+     put g
+     return g
 
-$(makeAcidic ''Globals ['incIt])
+getIt :: Query Globals Globals
+getIt = 
+  ask
+
+$(makeAcidic ''Globals ['putIt, 'getIt])
 
 --homepage :: ServerPart Response 
 homepage ref = do 
-  c <- update' ref (IncIt 20)
+  --c <- update' ref (IncIt 20)
+  v <- query' ref GetIt
   ok $ toResponse $ do 
-     show c
+     show "hi"
 
 --patronageMethod :: ServerPart Response
 patronageMethod = 
@@ -160,39 +169,63 @@ patronageMethod =
     ok $ toResponse $
        show $ B.unpack $ encode p0 -- hours1 patronageTotal [p1, p2] 
 
+--put /member/<id>/patronage/<fiscalPeriod> work=<...> & 
+memberPatronageMethod ref = 
+  do method PUT 
+     idIn <- lookText "id"
+     work <- lookText "work"
+     skillWeightedWork <- lookText "skillWeightedWork"
+     seniority <- lookText "seniority"
+     quality <- lookText "quality"
+     revenueGenerated <- lookText "revenueGenerated"
+     let readun = read . unpack
+     let p = WorkPatronage{work=readun work, skillWeightedWork=readun skillWeightedWork,
+	 	       seniority=readun seniority, quality=readun quality,
+		       revenueGenerated=readun revenueGenerated}
+     g <- query' ref GetIt
+     let Just m = L.find ((\i -> i == unpack idIn). firstName) $ members g
+     g2 <- update' ref (PutIt g{patronage = M.insert m p $ patronage g})
+     ok $ toResponse $ do
+     	show g2
+     	
+--post /equityAllocation ? surplus=<...>
+equityAllocation ref = 
+  do method POST
+     surplus <- lookText "surplus"
+     let res = FinancialResults 1 $ read $ unpack surplus
+     g <- query' ref GetIt
+     let e = allocateEquityFor res (patronage g) (snd $ calcMethod g)
+     ok $ toResponse $ do 
+     	show e
+
 --capaApp :: ServerPart Response
 capaApp ref = 
   msum 
   [ dir "patronage" $ patronageMethod 
-  , homepage ref ]
+  , dir "member" $ dir "patronage" $ memberPatronageMethod ref
+  , dir "equityAllocation" $ equityAllocation ref
+  , homepage ref
+  ]
 
 main = do
-   x <- openLocalState $ Globals 10
+   let wghts = PatronageWeights{workw=3%5,skillWeightedWorkw=0,seniorityw=1%5,
+		qualityw=0,revenueGeneratedw=1%5}
+   let g0 = Globals [Member "a", Member "b"] ("regular", wghts) M.empty
+   x <- openLocalState g0
    serve Nothing $ capaApp x
+
+
 
 {-
 main =
-  let pa1 = 
-       WorkPatronage{work=10, skillWeightedWork=0, seniority=2, quality=1, 
-       	         revenueGenerated=100}
-      pa2 = 
-       WorkPatronage{work=4, skillWeightedWork=0, seniority=3, quality=3,
-       	         revenueGenerated=100}
-      pw =
-       PatronageWeights{workw=3%5,skillWeightedWorkw=0,seniorityw=1%5,qualityw=0,
-		 revenueGeneratedw=1%5}
+  let 
       e1 = MemberEquityAction{actionType=BuyIn,amount=1000,performedOn=20,resultOf=1}
       e2 = 
         MemberEquityAction{actionType=AllocatePatronageRebate,amount=1000,
 		performedOn=20,resultOf=1}
       m1 = Member{firstName="m1"}
       m2 = Member{firstName="m2"}
-      pams = M.fromList [(m1,pa1),(m2,pa2)]
       rs = FinancialResults{over=10,surplus=3000}
   in do 
-    putStrLn $ show pams
-    putStrLn $ show $ patronageAllocateRatios pw pams
-    putStrLn $ show $ allocateEquityFor rs pams pw
     putStrLn $ show $ allMemberEquity $ M.fromList [(m1,[e1,e2]), (m2,[e1])]
 -}
-
