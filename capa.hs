@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables, DeriveDataTypeable, 
+{-# Language OverloadedStrings, ScopedTypeVariables, DeriveDataTypeable, 
     	     TemplateHaskell, TypeFamilies #-}
 module Main (main) where
 import Happstack.Lite
@@ -17,9 +17,12 @@ import Data.Acid            ( AcidState, Query, Update, makeAcidic, openLocalSta
 import Data.Acid.Advanced   ( query', update' )
 import Data.SafeCopy        ( base, deriveSafeCopy )
 import Data.Aeson
+import qualified Data.Aeson.Generic as AG
 import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.List as L
+import Numeric (readFloat)
 
+-----------------TYPES-------------------------------
 data WorkPatronage = WorkPatronage { --validate/make
   work::Integer, 
   skillWeightedWork::Integer,
@@ -28,11 +31,6 @@ data WorkPatronage = WorkPatronage { --validate/make
   revenueGenerated::Integer
   --performedOver::FiscalPeriod
 } deriving (Show, Eq, Ord, Data, Typeable)
-
-instance ToJSON WorkPatronage where
-  toJSON (WorkPatronage{work=w,skillWeightedWork=sw,seniority=sn,quality=q,
-			revenueGenerated=r}) = 
-	object ["work" .= w, "skillWeightedWork" .= sw]
 
 data PatronageWeights = PatronageWeights {
   workw::Rational,
@@ -59,7 +57,7 @@ data EquityActionType =
   DistributeOnDissolution |
   DistributeMilestone |
   AllocateDelayedNonQualified
-   deriving (Show)  
+   deriving (Show, Read, Data, Typeable)  
      
 data Member = Member {
   firstName::String
@@ -70,6 +68,19 @@ data FinancialResults = FinancialResults {
   surplus::Integer
 } deriving (Show)
 
+--date representation
+
+-----------------------UTIL-----------------------
+lookString :: String -> ServerPart String
+lookString = fmap unpack . lookText
+
+lookRead :: Read a => String -> ServerPart a
+lookRead = fmap read . lookString
+
+readRational :: String -> Rational
+readRational = toRational . fst . head . readFloat
+
+------------------------CALCS---------------------
 patronageTotal = 
   mconcat . 
     map   
@@ -113,19 +124,12 @@ allocateEquityFor FinancialResults{over=ov,surplus=sr} ps pw =
 allMemberEquity = 
   M.map (sum . map amount)
 
---date representation
 
---put /member firstName=<name>
---get /members
---put /patronage/calcMethod/<method name> workw=<..> & ...
---put /member/equityAction  actionType=<...> & ...
 
---postgresql db
-
-{- state??  members. method + weights. mem->patronage -}
+------------------PERSIST---------------------------
 data Globals = Globals { 
   members :: [Member],
-  calcMethod :: (String, PatronageWeights),
+  calcMethod :: Maybe (String, PatronageWeights),
   patronage :: M.Map Member WorkPatronage
 } deriving (Show, Eq, Ord, Data, Typeable)
 
@@ -148,69 +152,140 @@ getIt =
 
 $(makeAcidic ''Globals ['putIt, 'getIt])
 
---homepage :: ServerPart Response 
-homepage ref = do 
-  --c <- update' ref (IncIt 20)
+--postgresql db
+
+
+--------------SERIALIZE------------------------
+instance ToJSON Member where
+  toJSON Member{firstName=fn} = 
+  	 object ["firstName" .= fn]
+
+instance ToJSON MemberEquityAction where
+  toJSON MemberEquityAction{actionType=act,amount=amt,performedOn=prf,resultOf=res} = 
+  	 object ["actionType" .= AG.toJSON act, "amount" .= amt, "performedOn" .= prf,
+	 	 "resultOf" .= res]
+
+--FromParams for PatronageWeights, WorkPatronage, FinancialResults, MemberEqAct
+
+---------------SERVICE------------------------
+--coopSummary :: ServerPart Response 
+coopSummary ref = do 
   v <- query' ref GetIt
   ok $ toResponse $ do 
-     show "hi"
+     show v
 
---patronageMethod :: ServerPart Response
-patronageMethod = 
- do method POST
-    hours1 <- lookText "hours1"
-    wages1 <- lookText "wages1"
-    hours2 <- lookText "hours2"
-    wages2 <- lookText "wages2"
-    let p0 = WorkPatronage{work=10,skillWeightedWork=20,seniority=2,quality=4,
-				revenueGenerated=4}
-    --let p1 = WorkPatronage{work=read $ unpack hours1, revenue=read $ unpack wages1}
-    --let p2 = WorkPatronage{work=read $ unpack hours2, revenue=read $ unpack wages2}
-    ok $ toResponse $
-       show $ B.unpack $ encode p0 -- hours1 patronageTotal [p1, p2] 
-
---put /member/<id>/patronage/<fiscalPeriod> work=<...> & 
-memberPatronageMethod ref = 
-  do method PUT 
-     idIn <- lookText "id"
-     work <- lookText "work"
-     skillWeightedWork <- lookText "skillWeightedWork"
-     seniority <- lookText "seniority"
-     quality <- lookText "quality"
-     revenueGenerated <- lookText "revenueGenerated"
-     let readun = read . unpack
-     let p = WorkPatronage{work=readun work, skillWeightedWork=readun skillWeightedWork,
-	 	       seniority=readun seniority, quality=readun quality,
-		       revenueGenerated=readun revenueGenerated}
+putMember ref = 
+  do method PUT
+     firstName <- lookString "firstName"
+     let member = Member firstName
      g <- query' ref GetIt
-     let Just m = L.find ((\i -> i == unpack idIn). firstName) $ members g
-     g2 <- update' ref (PutIt g{patronage = M.insert m p $ patronage g})
-     ok $ toResponse $ do
-     	show g2
-     	
---post /equityAllocation ? surplus=<...>
-equityAllocation ref = 
-  do method POST
-     surplus <- lookText "surplus"
-     let res = FinancialResults 1 $ read $ unpack surplus
+     let mems = members g
+     g2 <- update' ref (PutIt g{members = mems ++ [member]})
+     ok $ toResponse ()
+     
+getMembers ref = 
+  do method GET
      g <- query' ref GetIt
-     let e = allocateEquityFor res (patronage g) (snd $ calcMethod g)
+     let ms = members g
      ok $ toResponse $ do 
-     	show e
+     	show $ B.unpack $ encode ms
 
+putCalcMethod ref = 
+  path $ \(methodName::String) -> 
+      do method PUT
+      	 let lookRational = fmap readRational . lookString
+     	 workw <- lookRational "workw"
+     	 skillWeightedWorkw <- lookRational "skillWeightedWorkw"
+     	 seniorityw <- lookRational "seniorityw"
+     	 qualityw <- lookRational "qualityw"
+     	 revenueGeneratedw <- lookRational "revenueGeneratedw"
+     	 let pw = PatronageWeights{workw=workw, 
+     	      	  skillWeightedWorkw=skillWeightedWorkw, 
+     	          seniorityw = seniorityw, 
+		  qualityw = qualityw, 
+		  revenueGeneratedw = revenueGeneratedw}
+     	 g <- query' ref GetIt
+     	 g2 <- update' ref $ PutIt g{calcMethod = Just (methodName, pw)}
+     	 ok $ toResponse ()
+
+putMemberPatronage ref = 
+  path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) ->
+     do method PUT 
+     	work <- lookRead "work"
+     	skillWeightedWork <- lookRead "skillWeightedWork"
+     	seniority <- lookRead "seniority"
+     	quality <- lookRead "quality"
+     	revenueGenerated <- lookRead "revenueGenerated"
+     	let p = WorkPatronage{work=work, 
+	      	       skillWeightedWork=skillWeightedWork,
+	 	       seniority=seniority, quality=quality,
+		       revenueGenerated=revenueGenerated}
+        g <- query' ref GetIt
+     	let Just m = L.find ((\i -> i == idIn). firstName) $ members g
+     	g2 <- update' ref (PutIt g{patronage = M.insert m p $ patronage g})
+     	ok $ toResponse ()
+     	
+postAllocateToMembers ref = 
+  do method POST
+     surplus <- lookRead "surplus"
+     let res = FinancialResults 1 surplus
+     g <- query' ref GetIt
+     let Just (name, parameters) = calcMethod g
+     let e = allocateEquityFor res (patronage g) parameters
+     ok $ toResponse $ do 
+     	show $ B.unpack $ encode e
+
+putEquityAction ref = 
+  do method PUT
+     actionType <- lookRead "actionType"
+     amount <- lookRead "amount"
+     performedOn <- lookRead "performedOn"
+     resultOf <- lookRead "resultOf"
+     let act = MemberEquityAction{actionType=actionType,amount=amount,
+     	          performedOn=performedOn, resultOf=resultOf}
+     ok $ toResponse ()
+
+---------------SERVICE CONTROLLER------------------
 --capaApp :: ServerPart Response
 capaApp ref = 
   msum 
-  [ dir "patronage" $ patronageMethod 
-  , dir "member" $ dir "patronage" $ memberPatronageMethod ref
-  , dir "equityAllocation" $ equityAllocation ref
-  , homepage ref
-  ]
+  [ --Getting started page with: calc method, weights
+    --Summary page with links to below
+     --Review members page with add member form
+     --Enter patronage form
+     --Allocate page with surplus box and action to use allocation
+    dir "members" $ getMembers ref
+  , dir "member" $ putMember ref
+  , dir "surplus" $ dir "allocate" $ dir "method" $ putCalcMethod ref
+  , dir "member" $ putMemberPatronage ref
+  , dir "equity" $ dir "members" $ dir "allocate" $ postAllocateToMembers ref
+  , dir "member" $ dir "equity" $ dir "history" $ putEquityAction ref
+  , coopSummary ref]
 
+
+---------------ENTRY---------------------------------
 main = do
-   let wghts = PatronageWeights{workw=3%5,skillWeightedWorkw=0,seniorityw=1%5,
-		qualityw=0,revenueGeneratedw=1%5}
-   let g0 = Globals [Member "a", Member "b"] ("regular", wghts) M.empty
+   let g0 = Globals [] Nothing M.empty
    x <- openLocalState g0
    serve Nothing $ capaApp x
 
+
+{---------------TODO------------------
+-put minimal UI up <<<< (serve skeleton pages, ajax on load, inject)
+-refine types and calcs more (+ Date) 
+-persist postgres
+-expand types
+-expand serialize
+-expand services
+-authenticate
+-polish UI
+-automate test(+travis), run, release, refresh. setup hosting. document.
+-configuration. automate backups, restore.
+-(sys)logging, automate monitor.
+-req + spec docs/website. bugs + enhance tracker. training tutorials.
+-javascript reorganize, library survey
+-remote support
+-creation/install and vm of prod env
+-perf test
+-meta: pricing/donations/developer and financial health monitor
+-}

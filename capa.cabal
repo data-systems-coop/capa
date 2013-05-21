@@ -1,9 +1,9 @@
-name:		Try
+name:		capa
 version: 	0.0
 build-type:	Simple
 cabal-version:  >= 1.2
 
-executable pgm1 
+executable capa 
   build-depends:	base, happstack-lite, blaze-html, text, 
                         containers, mtl, acid-state, safecopy, aeson, bytestring
   hs-source-dirs:	.
