@@ -2,7 +2,13 @@
     	     TemplateHaskell, TypeFamilies #-}
 module Main (main) where
 import Happstack.Lite
-import Text.Blaze.Html5 (p)
+import Text.Blaze.Html5 (html, p, toHtml)
+import Blaze.ByteString.Builder (toByteString)
+import Heist (loadTemplates, HeistConfig(..), HeistState, initHeist,
+              defaultLoadTimeSplices, defaultInterpretedSplices)
+import Heist.Interpreted (renderTemplate)
+import Control.Monad.Trans.Either
+import Control.Monad.Identity
 import Data.Text.Lazy (unpack)
 import Data.Monoid
 import Data.Ratio ((%))
@@ -18,9 +24,10 @@ import Data.Acid.Advanced   ( query', update' )
 import Data.SafeCopy        ( base, deriveSafeCopy )
 import Data.Aeson
 import qualified Data.Aeson.Generic as AG
-import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.List as L
 import Numeric (readFloat)
+import qualified Data.ByteString.Char8 as B
+
 
 -----------------TYPES-------------------------------
 data WorkPatronage = WorkPatronage { --validate/make
@@ -113,12 +120,11 @@ patronageAllocateRatios
 allocateEquityFor FinancialResults{over=ov,surplus=sr} ps pw = 
   let memberRatios = patronageAllocateRatios pw ps
   in  
-   map
+    M.map 
       (\alloc -> 
          MemberEquityAction{actionType=AllocatePatronageRebate,amount=alloc,
-    	            performedOn=0,resultOf=ov})    	       
-    . M.elems 
-    . M.map (\proportion -> round $ proportion * toRational sr) $
+    	            performedOn=0,resultOf=ov}) $    	       
+    M.map (\proportion -> round $ proportion * toRational sr) $
     memberRatios
 
 allMemberEquity = 
@@ -160,6 +166,15 @@ instance ToJSON Member where
   toJSON Member{firstName=fn} = 
   	 object ["firstName" .= fn]
 
+instance ToJSON WorkPatronage where
+  toJSON WorkPatronage{work=work,skillWeightedWork=skillWeightedWork,
+		       seniority=seniority,quality=quality,
+		       revenueGenerated=revenueGenerated} = 
+  	 object ["work" .= work, 
+	 	 "skillWeightedWork" .= skillWeightedWork, 
+		 "seniority" .= seniority, "quality" .= quality,
+		 "revenueGenerated" .= revenueGenerated]
+
 instance ToJSON MemberEquityAction where
   toJSON MemberEquityAction{actionType=act,amount=amt,performedOn=prf,resultOf=res} = 
   	 object ["actionType" .= AG.toJSON act, "amount" .= amt, "performedOn" .= prf,
@@ -171,11 +186,12 @@ instance ToJSON MemberEquityAction where
 --coopSummary :: ServerPart Response 
 coopSummary ref = do 
   v <- query' ref GetIt
-  ok $ toResponse $ do 
-     show v
+  addHeaderM "Access-Control-Allow-Origin" "*"
+  addHeaderM "Access-Control-Allow-Methods" "GET,POST,OPTIONS,PUT"
+  ok $ toResponse $ show v
 
 putMember ref = 
-  do method PUT
+  do method POST -- PUT
      firstName <- lookString "firstName"
      let member = Member firstName
      g <- query' ref GetIt
@@ -188,11 +204,21 @@ getMembers ref =
      g <- query' ref GetIt
      let ms = members g
      ok $ toResponse $ do 
-     	show $ B.unpack $ encode ms
+     	encode ms
+
+getMemberPatronage ref = 
+  path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) ->
+  do method GET 
+     g <- query' ref GetIt
+     let ps = patronage g
+     let Just m = L.find ((\i -> i == idIn). firstName) $ members g
+     let Just p = M.lookup m ps
+     ok $ toResponse $ do
+     	encode p  
 
 putCalcMethod ref = 
   path $ \(methodName::String) -> 
-      do method PUT
+      do method POST -- PUT
       	 let lookRational = fmap readRational . lookString
      	 workw <- lookRational "workw"
      	 skillWeightedWorkw <- lookRational "skillWeightedWorkw"
@@ -210,7 +236,7 @@ putCalcMethod ref =
 
 putMemberPatronage ref = 
   path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) ->
-     do method PUT 
+     do method POST -- PUT 
      	work <- lookRead "work"
      	skillWeightedWork <- lookRead "skillWeightedWork"
      	seniority <- lookRead "seniority"
@@ -231,12 +257,12 @@ postAllocateToMembers ref =
      let res = FinancialResults 1 surplus
      g <- query' ref GetIt
      let Just (name, parameters) = calcMethod g
-     let e = allocateEquityFor res (patronage g) parameters
+     let me = allocateEquityFor res (patronage g) parameters
      ok $ toResponse $ do 
-     	show $ B.unpack $ encode e
+     	encode $ M.toList me
 
 putEquityAction ref = 
-  do method PUT
+  do method POST -- PUT
      actionType <- lookRead "actionType"
      amount <- lookRead "amount"
      performedOn <- lookRead "performedOn"
@@ -245,42 +271,54 @@ putEquityAction ref =
      	          performedOn=performedOn, resultOf=resultOf}
      ok $ toResponse ()
 
----------------SERVICE CONTROLLER------------------
+
+--------------APP CONTROLLER------------------------
+templateResponse name hState = 
+  let rendered = runIdentity $ renderTemplate hState name
+  in maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
+  	   (\(bldr,_) -> ok $ toResponse $ toByteString bldr)
+	   rendered
+  	
+
+---------------ENTRY---------------------------------
 --capaApp :: ServerPart Response
-capaApp ref = 
+capaApp ref hState = 
   msum 
-  [ --Getting started page with: calc method, weights
-    --Summary page with links to below
-     --Review members page with add member form
-     --Enter patronage form
-     --Allocate page with surplus box and action to use allocation
-    dir "members" $ getMembers ref
+  [
+    -- dir "control" $ dir "configure" $ templateResponse "admin" hState
+    -- dir "control" $ dir "home" $ templateResponse "home" hState - link to below, list members
+    -- dir "control" $ dir "member" $ dir "add" $ templateResponse "member" hState - input member
+    dir "control" $ dir "member" $ dir "patronage" $ dir "add" $ templateResponse "patronage" hState
+  , dir "control" $ dir "equity" $ dir "members" $ dir "allocate" $ templateResponse "allocate" hState 
+  , dir "members" $ getMembers ref
   , dir "member" $ putMember ref
   , dir "surplus" $ dir "allocate" $ dir "method" $ putCalcMethod ref
   , dir "member" $ putMemberPatronage ref
+  , dir "member" $ getMemberPatronage ref
   , dir "equity" $ dir "members" $ dir "allocate" $ postAllocateToMembers ref
   , dir "member" $ dir "equity" $ dir "history" $ putEquityAction ref
   , coopSummary ref]
 
-
----------------ENTRY---------------------------------
 main = do
    let g0 = Globals [] Nothing M.empty
    x <- openLocalState g0
-   serve Nothing $ capaApp x
-
+   ehs <- runEitherT $ do 
+     templateRepo <- loadTemplates "control"
+     let hCfg = (HeistConfig [] (defaultInterpretedSplices ++ defaultLoadTimeSplices) [] [] templateRepo)::HeistConfig Identity
+     initHeist hCfg
+   either (error . concat) (serve Nothing . capaApp x) ehs 
 
 {---------------TODO------------------
--put minimal UI up <<<< (serve skeleton pages, ajax on load, inject)
--refine types and calcs more (+ Date) 
+-refine types and calcs more (+ Date<<<<<e) 
+
 -persist postgres
 -expand types
--expand serialize
--expand services
--authenticate
+-expand serialize, services
+-authenticate + user track <<<<
 -polish UI
 -automate test(+travis), run, release, refresh. setup hosting. document.
--configuration. automate backups, restore.
+-configuration. automate backups, restore. 
+-admin UI, export method
 -(sys)logging, automate monitor.
 -req + spec docs/website. bugs + enhance tracker. training tutorials.
 -javascript reorganize, library survey
