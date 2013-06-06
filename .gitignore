@@ -1,5 +1,7 @@
+/state/*
 dist
 cabal-dev
+*~
 *.o
 *.hi
 *.chi
