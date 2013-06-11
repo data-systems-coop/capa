@@ -70,6 +70,7 @@ function enableAddMode(row, memberId){
   $("#addForm input").val("")
   $("#add").show()
   $("#addForm").attr("action",sprintf("/member/%s/patronage/1", memberId))
+  console.log($("#performedOver").val())
 }
 function setupAddForm(){
   $("#cancel").click(cancelAddMode)
@@ -79,19 +80,26 @@ function setupAddForm(){
          cancelAddMode()
        }
     })
+  //fill the select
 }
+//fill fiscal periods
+   //fetch fiscal periods
 </script>
 <form id="addForm" method="POST"> 
 <label for="work">Work</label>
-<input type="text" class="input-mini" name='work' id="work"/>
+<input type="text" class="input-mini" name='work' id="work">
 <label for="skillWeightedWork">Skill-Weighted Work</label>
-<input type="text" class="input-mini" name='skillWeightedWork' id="skillWeightedWork"/>
+<input type="text" class="input-mini" name='skillWeightedWork' id="skillWeightedWork">
 <label for="seniority">Seniority</label>
-<input type="text" class="input-mini" name='seniority' id="seniority"/>
+<input type="text" class="input-mini" name='seniority' id="seniority">
 <label for="quality">Quality</label>
-<input type="text" class="input-mini" name='quality' id="quality"/>
+<input type="text" class="input-mini" name='quality' id="quality">
 <label for="revenueGenerated">Revenue Generated</label>
-<input type="text" class="input-mini" name='revenueGenerated' id="revenueGenerated"/>
+<input type="text" class="input-mini" name='revenueGenerated' id="revenueGenerated">
+<label for="performedOver">Performed Over</label>
+<select class="input-small" name='performedOver' id="performedOver" disabled>
+  <option value='{"start":{"year":2013,"month":1},"periodType":"Year"}'>2013</option>  
+</select>
 <div class="form-actions">
 <button type="submit" class="btn btn-primary">Save</button>
 <button id="cancel" type="button" class="btn">Cancel</button>
