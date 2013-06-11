@@ -10,6 +10,7 @@ import Heist.Interpreted (renderTemplate)
 import Control.Monad.Trans.Either
 import Control.Monad.Identity
 import Data.Text.Lazy (unpack)
+import qualified Data.Text as DT
 import Data.Monoid
 import Data.Ratio ((%))
 --import Data.Default 
@@ -23,20 +24,25 @@ import Data.Acid            ( AcidState, Query, Update, makeAcidic, openLocalSta
 import Data.Acid.Advanced   ( query', update' )
 import Data.SafeCopy        ( base, deriveSafeCopy )
 import Data.Aeson
+import qualified Data.Aeson.Types as AT
 import qualified Data.Aeson.Generic as AG
 import qualified Data.List as L
 import Numeric (readFloat)
 import qualified Data.ByteString.Char8 as B
-
+import Data.Time (Day, fromGregorian , toGregorian, UTCTime(..), getCurrentTime)
+import Control.Monad.IO.Class (liftIO)
+import Control.Applicative
+import qualified Data.Vector as V
+import Data.Attoparsec.Number as AN
 
 -----------------TYPES-------------------------------
-data WorkPatronage = WorkPatronage { --validate/make
+data WorkPatronage = WorkPatronage {
   work::Integer, 
   skillWeightedWork::Integer,
   seniority::Integer,
   quality::Integer,
-  revenueGenerated::Integer
-  --performedOver::FiscalPeriod
+  revenueGenerated::Integer,
+  performedOver::FiscalPeriod
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 data PatronageWeights = PatronageWeights {
@@ -50,8 +56,8 @@ data PatronageWeights = PatronageWeights {
 data MemberEquityAction = MemberEquityAction {
   actionType::EquityActionType,
   amount::Integer,
-  performedOn::Integer,
-  resultOf::Integer   --FiscalPeriod
+  performedOn::Day, 
+  resultOf::FiscalPeriod
 } deriving (Show)
 
 data EquityActionType = 
@@ -71,11 +77,20 @@ data Member = Member {
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 data FinancialResults = FinancialResults { 
-  over::Integer, --FiscalPeriod  
+  over::FiscalPeriod,
   surplus::Integer
 } deriving (Show)
 
---date representation
+data FiscalPeriod = FiscalPeriod {
+  start::GregorianMonth,
+  periodType::PeriodType
+} deriving (Show, Read, Eq, Ord, Data, Typeable)
+data GregorianMonth = GregorianMonth Year Month
+  deriving (Show, Read, Eq, Ord, Data, Typeable)
+type Year = Integer
+type Month = Int
+data PeriodType = Year | Quarter
+  deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 -----------------------UTIL-----------------------
 lookString :: String -> ServerPart String
@@ -92,7 +107,7 @@ patronageTotal =
   mconcat . 
     map   
       (\WorkPatronage{work=w, skillWeightedWork=sk, 
-      		     seniority=sn, quality=q, revenueGenerated=r} ->
+      		     seniority=sn, quality=q, revenueGenerated=r, performedOver=_} ->
          (Sum w, Sum sk, Sum sn, Sum q, Sum r))
 
 divOrZero num 0 = 0
@@ -102,7 +117,7 @@ patronageProportions ps =
   let (Sum tw, Sum tsk, Sum tsn, Sum tq, Sum tr) = patronageTotal $ M.elems ps
   in M.map 
      (\WorkPatronage{work=w,skillWeightedWork=sk,seniority=sn,
-		     quality=q, revenueGenerated=r} -> 
+		     quality=q, revenueGenerated=r, performedOver=_} -> 
           (divOrZero w tw, divOrZero sk tsk, 
 	   divOrZero sn tsn, divOrZero q tq, 
 	   divOrZero r tr))
@@ -117,13 +132,13 @@ patronageAllocateRatios
      . patronageProportions
 
 
-allocateEquityFor FinancialResults{over=ov,surplus=sr} ps pw = 
+allocateEquityFor FinancialResults{over=ov,surplus=sr} ps pw performedOn = 
   let memberRatios = patronageAllocateRatios pw ps
   in  
     M.map 
       (\alloc -> 
          MemberEquityAction{actionType=AllocatePatronageRebate,amount=alloc,
-    	            performedOn=0,resultOf=ov}) $    	       
+    	            performedOn=performedOn,resultOf=ov}) $    	       
     M.map (\proportion -> round $ proportion * toRational sr) $
     memberRatios
 
@@ -143,6 +158,10 @@ $(deriveSafeCopy 0 'base ''Globals)
 $(deriveSafeCopy 0 'base ''Member)
 $(deriveSafeCopy 0 'base ''PatronageWeights)
 $(deriveSafeCopy 0 'base ''WorkPatronage)
+$(deriveSafeCopy 0 'base ''FinancialResults)
+$(deriveSafeCopy 0 'base ''FiscalPeriod)
+$(deriveSafeCopy 0 'base ''GregorianMonth)
+$(deriveSafeCopy 0 'base ''PeriodType)
 
 putIt :: Globals -> Update Globals Globals
 putIt g = 
@@ -169,18 +188,49 @@ instance ToJSON Member where
 instance ToJSON WorkPatronage where
   toJSON WorkPatronage{work=work,skillWeightedWork=skillWeightedWork,
 		       seniority=seniority,quality=quality,
-		       revenueGenerated=revenueGenerated} = 
+		       revenueGenerated=revenueGenerated, performedOver=prf} = 
   	 object ["work" .= work, 
 	 	 "skillWeightedWork" .= skillWeightedWork, 
 		 "seniority" .= seniority, "quality" .= quality,
-		 "revenueGenerated" .= revenueGenerated]
+		 "revenueGenerated" .= revenueGenerated, 
+		 "performedOver" .= toJSON prf]
 
 instance ToJSON MemberEquityAction where
   toJSON MemberEquityAction{actionType=act,amount=amt,performedOn=prf,resultOf=res} = 
-  	 object ["actionType" .= AG.toJSON act, "amount" .= amt, "performedOn" .= prf,
-	 	 "resultOf" .= res]
+  	 object ["actionType" .= AG.toJSON act, 
+	 	 "amount" .= amt, 
+	 	 "performedOn" .= toGregorian prf, 
+		 "resultOf" .= res]
+
+instance ToJSON GregorianMonth where
+  toJSON (GregorianMonth year month) = 
+    	 object ["year" .= year, 
+	 	 "month" .= month]
+
+instance ToJSON FiscalPeriod where
+  toJSON FiscalPeriod{start=st,periodType=pt} = 
+  	 object ["start" .= toJSON st,
+	  	 "periodType" .= AG.toJSON pt]
+
 
 --FromParams for PatronageWeights, WorkPatronage, FinancialResults, MemberEqAct
+instance FromJSON GregorianMonth where
+  parseJSON (Object v) = 
+     GregorianMonth <$> v .: "year" <*> v.: "month"
+
+instance FromJSON PeriodType where
+  parseJSON (String t) = pure $ read $ DT.unpack t
+     
+instance FromJSON FiscalPeriod where
+  parseJSON (Object v) = 
+     FiscalPeriod <$> v .: "start" <*> v .: "periodType"
+
+instance FromJSON Day where
+  parseJSON (Array a) = 
+     fromGregorian 
+       <$> withNumber "inccorect num" (\(AN.I i) -> pure i) (a V.! 0)
+       <*> withNumber "inccorect num" (\(AN.I i) -> pure $ fromIntegral i) (a V.! 1)
+       <*> withNumber "inccorect num" (\(AN.I i) -> pure $ fromIntegral i) (a V.! 2)
 
 ---------------SERVICE------------------------
 --coopSummary :: ServerPart Response 
@@ -242,10 +292,13 @@ putMemberPatronage ref =
      	seniority <- lookRead "seniority"
      	quality <- lookRead "quality"
      	revenueGenerated <- lookRead "revenueGenerated"
+	performedOverStr <- lookBS "performedOver"
+	liftIO $ putStrLn $ show performedOverStr
+	let Just performedOver = decode performedOverStr
      	let p = WorkPatronage{work=work, 
 	      	       skillWeightedWork=skillWeightedWork,
 	 	       seniority=seniority, quality=quality,
-		       revenueGenerated=revenueGenerated}
+		       revenueGenerated=revenueGenerated,performedOver=performedOver}
         g <- query' ref GetIt
      	let Just m = L.find ((\i -> i == idIn). firstName) $ members g
      	g2 <- update' ref (PutIt g{patronage = M.insert m p $ patronage g})
@@ -254,10 +307,13 @@ putMemberPatronage ref =
 postAllocateToMembers ref = 
   do method POST
      surplus <- lookRead "surplus"
-     let res = FinancialResults 1 surplus
+     overStr <- lookBS "over"
+     let Just over = decode overStr
+     let res = FinancialResults over surplus
      g <- query' ref GetIt
      let Just (name, parameters) = calcMethod g
-     let me = allocateEquityFor res (patronage g) parameters
+     UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
+     let me = allocateEquityFor res (patronage g) parameters day
      ok $ toResponse $ do 
      	encode $ M.toList me
 
@@ -265,8 +321,10 @@ putEquityAction ref =
   do method POST -- PUT
      actionType <- lookRead "actionType"
      amount <- lookRead "amount"
-     performedOn <- lookRead "performedOn"
-     resultOf <- lookRead "resultOf"
+     performedOnStr <- lookBS "performedOn"
+     let Just performedOn = decode performedOnStr
+     resultOfStr <- lookBS "resultOf"
+     let Just resultOf = decode resultOfStr
      let act = MemberEquityAction{actionType=actionType,amount=amount,
      	          performedOn=performedOn, resultOf=resultOf}
      ok $ toResponse ()
@@ -309,14 +367,20 @@ main = do
    either (error . concat) (serve Nothing . capaApp x) ehs 
 
 {---------------TODO------------------
--refine types and calcs more (+ Date<<<<<e) 
+-refine types and calcs more
 
 -persist postgres
 -expand types
 -expand serialize, services
--authenticate + user track <<<<
+
+
+-filter by coop
+-authenticate + user track 
+-use across different date ranges
 -polish UI
 -automate test(+travis), run, release, refresh. setup hosting. document.
+
+
 -configuration. automate backups, restore. 
 -admin UI, export method
 -(sys)logging, automate monitor.
@@ -324,6 +388,8 @@ main = do
 -javascript reorganize, library survey
 -remote support
 -creation/install and vm of prod env
--perf test
+-better error with dead end web paths
 -meta: pricing/donations/developer and financial health monitor
 -}
+
+
