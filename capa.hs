@@ -1,7 +1,11 @@
 {-# Language OverloadedStrings, ScopedTypeVariables, DeriveDataTypeable, 
     	     TemplateHaskell, TypeFamilies #-}
 module Main (main) where
+
 import Happstack.Lite
+
+import Happstack.Server.Routing as HSR (dirs)
+
 import Text.Blaze.Html5 (html, p, toHtml)
 import Blaze.ByteString.Builder (toByteString)
 import Heist (loadTemplates, HeistConfig(..), HeistState, initHeist,
@@ -9,31 +13,43 @@ import Heist (loadTemplates, HeistConfig(..), HeistState, initHeist,
 import Heist.Interpreted (renderTemplate)
 import Control.Monad.Trans.Either
 import Control.Monad.Identity
+
 import Data.Text.Lazy (unpack)
 import qualified Data.Text as DT
+import qualified Data.ByteString.Char8 as B
+
 import Data.Monoid
+
 import Data.Ratio ((%))
 --import Data.Default 
+
 import qualified Data.Map as M
-import Data.IORef
+
+import Control.Monad.IO.Class (liftIO)
+
 import Control.Exception    ( bracket )
+
 import Control.Monad.Reader ( ask )
 import Control.Monad.State  ( get, put )
 import Data.Data            ( Data, Typeable )
+
 import Data.Acid            ( AcidState, Query, Update, makeAcidic, openLocalState )
 import Data.Acid.Advanced   ( query', update' )
 import Data.SafeCopy        ( base, deriveSafeCopy )
+
 import Data.Aeson
 import qualified Data.Aeson.Types as AT
 import qualified Data.Aeson.Generic as AG
-import qualified Data.List as L
-import Numeric (readFloat)
-import qualified Data.ByteString.Char8 as B
-import Data.Time (Day, fromGregorian , toGregorian, UTCTime(..), getCurrentTime)
-import Control.Monad.IO.Class (liftIO)
 import Control.Applicative
-import qualified Data.Vector as V
 import Data.Attoparsec.Number as AN
+import qualified Data.Vector as V
+
+import qualified Data.List as L
+
+import Numeric (readFloat)
+
+import Data.Time (Day, fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
+                  addGregorianMonthsClip, addGregorianYearsClip)
 
 -----------------TYPES-------------------------------
 data WorkPatronage = WorkPatronage {
@@ -55,10 +71,9 @@ data PatronageWeights = PatronageWeights {
 
 data MemberEquityAction = MemberEquityAction {
   actionType::EquityActionType,
-  amount::Integer,
-  performedOn::Day, 
-  resultOf::FiscalPeriod
-} deriving (Show)
+  amount::Money,
+  performedOn::Day
+} deriving (Show, Read)
 
 data EquityActionType = 
   BuyIn |
@@ -72,25 +87,75 @@ data EquityActionType =
   AllocateDelayedNonQualified
    deriving (Show, Read, Data, Typeable)  
      
+data MemberEquityAccount = MemberEquityAccount {  
+  ida::Integer,
+  accountType::EquityAccountType
+} deriving (Show, Read)
+
+data EquityAccountType = Committed | RollingPatronage
+   deriving (Show, Read, Data, Typeable)
+
 data Member = Member {
   firstName::String
+  --lastName::String
+  --id::Integer
+  --acceptedOn::Day
+  --leftOn::Day
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 data FinancialResults = FinancialResults { 
   over::FiscalPeriod,
-  surplus::Integer
-} deriving (Show)
+  surplus::Money
+  --net-inc
+} deriving (Show, Read)
+
+data Allocation = Allocation { 
+  recordedOn::Day,
+  resultOf::FiscalPeriod
+} deriving (Show, Read)
+
+data Cooperative = Cooperative {
+  id::Integer,
+  name::String,
+  username::Email,
+  bookkeeperFirstName::String,
+  usageStart::Day,
+  usageEnd::Day,
+  fiscalCalendarType::FiscalCalendarType
+} deriving (Show, Read)
+
+type SeniorityMapping = [(Years,Years),SeniorityLevel]
+type SeniorityLevel = Integer
 
 data FiscalPeriod = FiscalPeriod {
   start::GregorianMonth,
   periodType::PeriodType
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
+
 data GregorianMonth = GregorianMonth Year Month
   deriving (Show, Read, Eq, Ord, Data, Typeable)
+
 type Year = Integer
 type Month = Int
+
+data FiscalCalendarType = FiscalCalendarType{
+  startf::Month,
+  periodTypef::PeriodType
+} deriving (Show, Read)
+
 data PeriodType = Year | Quarter
   deriving (Show, Read, Eq, Ord, Data, Typeable)
+
+type Email = String
+type Money = Integer
+
+data GregorianDuration = GregorianDuration Years Months 
+  deriving (Show, Read, Eq, Ord, Data, Typeable)
+type Years = Integer
+type Months = Integer
+
+type DisbursalSchedule = [(GregorianDuration, Rational)]
+-- [(GregorianDuration 0 6, 1%4), (GregorianDuration 1 0, 3%4)]
 
 -----------------------UTIL-----------------------
 lookString :: String -> ServerPart String
@@ -99,7 +164,7 @@ lookString = fmap unpack . lookText
 lookRead :: Read a => String -> ServerPart a
 lookRead = fmap read . lookString
 
-readRational :: String -> Rational
+readRational :: String -> Rational  --truncate to 100ths
 readRational = toRational . fst . head . readFloat
 
 ------------------------CALCS---------------------
@@ -138,19 +203,40 @@ allocateEquityFor FinancialResults{over=ov,surplus=sr} ps pw performedOn =
     M.map 
       (\alloc -> 
          MemberEquityAction{actionType=AllocatePatronageRebate,amount=alloc,
-    	            performedOn=performedOn,resultOf=ov}) $    	       
+    	            performedOn=performedOn}) $    	       
     M.map (\proportion -> round $ proportion * toRational sr) $
     memberRatios
 
 allMemberEquity = 
   M.map (sum . map amount)
 
+memberEquityBalance :: [MemberEquityAction] -> Day -> Integer
+memberEquityBalance actions asOf = 0
+
+scheduleDisbursalsFor :: MemberEquityAction -> DisbursalSchedule -> [MemberEquityAction]
+scheduleDisbursalsFor 
+  MemberEquityAction{actionType=AllocatePatronageRebate,amount=amount, 
+                     performedOn=allocatedOn} 
+  schedule = 
+    let addDuration (GregorianDuration years months) day = 
+          addGregorianMonthsClip months $ addGregorianYearsClip years day
+        makeAction dsb on = 
+          MemberEquityAction{actionType=DistributeInstallment,
+                             amount=dsb,
+                             performedOn=on}
+    in map
+         (\(duration, proportion) -> 
+            let disburse = round $ (toRational amount) * proportion
+                on = addDuration duration allocatedOn
+            in makeAction disburse on)
+         schedule
 
 
 ------------------PERSIST---------------------------
 data Globals = Globals { 
   members :: [Member],
   calcMethod :: Maybe (String, PatronageWeights),
+  disbursalSchedule :: DisbursalSchedule,
   patronage :: M.Map Member WorkPatronage
 } deriving (Show, Eq, Ord, Data, Typeable)
 
@@ -162,6 +248,7 @@ $(deriveSafeCopy 0 'base ''FinancialResults)
 $(deriveSafeCopy 0 'base ''FiscalPeriod)
 $(deriveSafeCopy 0 'base ''GregorianMonth)
 $(deriveSafeCopy 0 'base ''PeriodType)
+$(deriveSafeCopy 0 'base ''GregorianDuration)
 
 putIt :: Globals -> Update Globals Globals
 putIt g = 
@@ -176,8 +263,6 @@ getIt =
   ask
 
 $(makeAcidic ''Globals ['putIt, 'getIt])
-
---postgresql db
 
 
 --------------SERIALIZE------------------------
@@ -196,11 +281,10 @@ instance ToJSON WorkPatronage where
 		 "performedOver" .= toJSON prf]
 
 instance ToJSON MemberEquityAction where
-  toJSON MemberEquityAction{actionType=act,amount=amt,performedOn=prf,resultOf=res} = 
+  toJSON MemberEquityAction{actionType=act,amount=amt,performedOn=prf} = 
   	 object ["actionType" .= AG.toJSON act, 
 	 	 "amount" .= amt, 
-	 	 "performedOn" .= toGregorian prf, 
-		 "resultOf" .= res]
+	 	 "performedOn" .= toGregorian prf]
 
 instance ToJSON GregorianMonth where
   toJSON (GregorianMonth year month) = 
@@ -212,8 +296,18 @@ instance ToJSON FiscalPeriod where
   	 object ["start" .= toJSON st,
 	  	 "periodType" .= AG.toJSON pt]
 
-
 --FromParams for PatronageWeights, WorkPatronage, FinancialResults, MemberEqAct
+
+instance FromJSON MemberEquityAction where
+  parseJSON (Object v) = 
+    MemberEquityAction <$> 
+      v .: "actionType" <*> 
+      v .: "amount" <*> 
+      v .: "performedOn"
+  
+instance FromJSON EquityActionType where
+  parseJSON (String t) = pure $ read $ DT.unpack t
+
 instance FromJSON GregorianMonth where
   parseJSON (Object v) = 
      GregorianMonth <$> v .: "year" <*> v.: "month"
@@ -233,15 +327,20 @@ instance FromJSON Day where
        <*> withNumber "inccorect num" (\(AN.I i) -> pure $ fromIntegral i) (a V.! 2)
 
 ---------------SERVICE------------------------
---coopSummary :: ServerPart Response 
+coopSummary :: PersistConnection -> ServerPartR
 coopSummary ref = do 
   v <- query' ref GetIt
-  addHeaderM "Access-Control-Allow-Origin" "*"
-  addHeaderM "Access-Control-Allow-Methods" "GET,POST,OPTIONS,PUT"
   ok $ toResponse $ show v
 
+-- getFiscalPeriods
+
+-- putCooperative :: PersistentConnection -> ServerPartR
+
+-- getCooperative :: PersistentConnection -> ServerPartR
+
+putMember :: PersistConnection -> ServerPartR
 putMember ref = 
-  do method POST -- PUT
+  do method POST
      firstName <- lookString "firstName"
      let member = Member firstName
      g <- query' ref GetIt
@@ -249,6 +348,7 @@ putMember ref =
      g2 <- update' ref (PutIt g{members = mems ++ [member]})
      ok $ toResponse ()
      
+getMembers :: PersistConnection -> ServerPartR
 getMembers ref = 
   do method GET
      g <- query' ref GetIt
@@ -256,6 +356,7 @@ getMembers ref =
      ok $ toResponse $ do 
      	encode ms
 
+getMemberPatronage :: PersistConnection -> ServerPartR
 getMemberPatronage ref = 
   path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) ->
   do method GET 
@@ -266,9 +367,16 @@ getMemberPatronage ref =
      ok $ toResponse $ do
      	encode p  
 
+-- putDefaultDisbursalSchedule
+        
+-- getDefaultDisbursalSchedule
+
+-- getCalcMethod 
+
+putCalcMethod :: PersistConnection -> ServerPartR
 putCalcMethod ref = 
   path $ \(methodName::String) -> 
-      do method POST -- PUT
+      do method POST 
       	 let lookRational = fmap readRational . lookString
      	 workw <- lookRational "workw"
      	 skillWeightedWorkw <- lookRational "skillWeightedWorkw"
@@ -284,15 +392,16 @@ putCalcMethod ref =
      	 g2 <- update' ref $ PutIt g{calcMethod = Just (methodName, pw)}
      	 ok $ toResponse ()
 
+putMemberPatronage :: PersistConnection -> ServerPartR
 putMemberPatronage ref = 
   path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) ->
-     do method POST -- PUT 
+     do method POST
      	work <- lookRead "work"
      	skillWeightedWork <- lookRead "skillWeightedWork"
      	seniority <- lookRead "seniority"
      	quality <- lookRead "quality"
      	revenueGenerated <- lookRead "revenueGenerated"
-	performedOverStr <- lookBS "performedOver"
+	performedOverStr <- lookBS "performedOver" --use path instead
 	liftIO $ putStrLn $ show performedOverStr
 	let Just performedOver = decode performedOverStr
      	let p = WorkPatronage{work=work, 
@@ -303,7 +412,8 @@ putMemberPatronage ref =
      	let Just m = L.find ((\i -> i == idIn). firstName) $ members g
      	g2 <- update' ref (PutIt g{patronage = M.insert m p $ patronage g})
      	ok $ toResponse ()
-     	
+
+postAllocateToMembers :: PersistConnection -> ServerPartR
 postAllocateToMembers ref = 
   do method POST
      surplus <- lookRead "surplus"
@@ -317,18 +427,28 @@ postAllocateToMembers ref =
      ok $ toResponse $ do 
      	encode $ M.toList me
 
+putEquityAction :: PersistConnection -> ServerPartR
 putEquityAction ref = 
-  do method POST -- PUT
+  do method POST
      actionType <- lookRead "actionType"
      amount <- lookRead "amount"
      performedOnStr <- lookBS "performedOn"
      let Just performedOn = decode performedOnStr
-     resultOfStr <- lookBS "resultOf"
-     let Just resultOf = decode resultOfStr
      let act = MemberEquityAction{actionType=actionType,amount=amount,
-     	          performedOn=performedOn, resultOf=resultOf}
+     	          performedOn=performedOn}
      ok $ toResponse ()
 
+postScheduleAllocateDisbursal :: PersistConnection -> ServerPartR
+postScheduleAllocateDisbursal ref = 
+  do method POST
+     allocateActionStr <- lookBS "allocateAction"
+     let Just allocateAction = decode allocateActionStr
+     g <- query' ref GetIt
+     ok $ toResponse $ show $ scheduleDisbursalsFor allocateAction $ disbursalSchedule g
+                          
+-- getEquityHistory :: PersistConnection -> ServerPartR
+-- getEquitySummary 
+--
 
 --------------APP CONTROLLER------------------------
 templateResponse name hState = 
@@ -339,45 +459,67 @@ templateResponse name hState =
   	
 
 ---------------ENTRY---------------------------------
---capaApp :: ServerPart Response
+capaApp :: PersistConnection -> TemplateStore -> ServerPartR
 capaApp ref hState = 
   msum 
   [
-    -- dir "control" $ dir "configure" $ templateResponse "admin" hState
-    -- dir "control" $ dir "home" $ templateResponse "home" hState - link to below, list members
-    -- dir "control" $ dir "member" $ dir "add" $ templateResponse "member" hState - input member
-    dir "control" $ dir "member" $ dir "patronage" $ dir "add" $ templateResponse "patronage" hState
-  , dir "control" $ dir "equity" $ dir "members" $ dir "allocate" $ templateResponse "allocate" hState 
+    dirs "control/coop/summary" $ templateResponse "coopSummary" hState
+  , dirs "control/member/accounts" $ templateResponse "memberAccounts" hState
+  , dirs "control/financial/results" $ templateResponse "financialResults" hState
+  , dirs "control/members/patronage/period" $ templateResponse "periodPatronage" hState
+  , dirs "control/equity/members/allocationsDisbursals" $ 
+           templateResponse "allocationsDisbursals" hState
+  , dirs "control/members/add" $ templateResponse "newMember" hState
+  , dirs "control/member/account/action/add" $ templateResponse "addAction" hState
+  , dirs "control/financial/result/record" $ templateResponse "recordResult" hState
+  , dirs "control/member/patronage/record" $ templateResponse "recordPatronage" hState
+  , dirs "control/coop/register" $ templateResponse "registerCoop" hState
+  , dirs "control/coop/settings" $ templateResponse "coopSettings" hState
+  
   , dir "members" $ getMembers ref
   , dir "member" $ putMember ref
-  , dir "surplus" $ dir "allocate" $ dir "method" $ putCalcMethod ref
+  , dirs "surplus/allocate/method" $ putCalcMethod ref
   , dir "member" $ putMemberPatronage ref
   , dir "member" $ getMemberPatronage ref
-  , dir "equity" $ dir "members" $ dir "allocate" $ postAllocateToMembers ref
-  , dir "member" $ dir "equity" $ dir "history" $ putEquityAction ref
+  , dirs "equity/members/allocate" $ postAllocateToMembers ref
+  , dirs "member/equity/disburse" $ postScheduleAllocateDisbursal ref
+  , dirs "member/equity/history" $ putEquityAction ref
   , coopSummary ref]
 
+type PersistConnection = AcidState Globals
+type TemplateStore = HeistState Identity
+type ServerPartR = ServerPart Response
+
 main = do
-   let g0 = Globals [] Nothing M.empty
+   let g0 = Globals 
+              [] 
+              Nothing 
+              [(GregorianDuration 0 3, 1%4),(GregorianDuration 1 6, 3%4)] 
+              M.empty
    x <- openLocalState g0
    ehs <- runEitherT $ do 
      templateRepo <- loadTemplates "control"
-     let hCfg = (HeistConfig [] (defaultInterpretedSplices ++ defaultLoadTimeSplices) [] [] templateRepo)::HeistConfig Identity
+     let hCfg = (HeistConfig 
+	           [] 
+	           (defaultInterpretedSplices ++ defaultLoadTimeSplices) 
+	           [] 
+	           [] 
+	           templateRepo)::HeistConfig Identity
      initHeist hCfg
    either (error . concat) (serve Nothing . capaApp x) ehs 
 
 {---------------TODO------------------
--refine types and calcs more
+-refine types and calcs more ~ a little
+-expand serialize, services ~ halfway
+-more forms <<
 
--persist postgres
--expand types
--expand serialize, services
-
-
--filter by coop
--authenticate + user track 
 -use across different date ranges
+-filter by coop
+
+-authenticate + user session
+-persist postgres
 -polish UI
+-multiple source files/modules
 -automate test(+travis), run, release, refresh. setup hosting. document.
 
 
@@ -390,6 +532,8 @@ main = do
 -creation/install and vm of prod env
 -better error with dead end web paths
 -meta: pricing/donations/developer and financial health monitor
+-interest daily job
+-patronage - salary
 -}
 
 
