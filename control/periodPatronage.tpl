@@ -1,5 +1,14 @@
 <apply template="outerTemplate">
 
+<div class="row">
+<div class="span3">
+<select>
+  <option value="">FY 2012</option>
+  <option value="">FY 2011</option>
+</select>
+</div>
+</div>
+
 <script>
 $(document).ready(function() {
   updateNavigation("Patronage")
@@ -47,8 +56,7 @@ function updatePatronage(memberId, patronage){
 </script>
 <table class="table table-hover">
 <thead>
-  <tr><th>Name</th><th>Work</th><th>Skill-Weighted Work</th><th>Seniority</th>
-      <th>Quality</th><th>Revenue Generated</th></tr>
+  <tr><th>Name</th><th>Productive Hours</th><th>Salary</th></tr>
 </thead>
 <tbody id="members">
 </tbody>

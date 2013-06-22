@@ -6,6 +6,7 @@
 <script src="//malsup.github.io/jquery.form.js"> </script> 
 <script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
 <script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js"></script>
+<script src="https://raw.github.com/eternicode/bootstrap-datepicker/master/js/bootstrap-datepicker.js"></script> 
 </head>
 <body>
 

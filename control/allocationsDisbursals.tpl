@@ -61,6 +61,7 @@ function attachAllocation(member, equityAction){
   $("#" + member.firstName).append(sprintf("<td>%s</td>",equityAction.amount))
 }
 </script>
+
 <table class="table">
 <thead>
   <tr><th>Name</th><th>Work</th><th>Skill-Weighted Work</th>
