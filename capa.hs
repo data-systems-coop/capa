@@ -17,6 +17,7 @@ import Control.Monad.Trans.Either
 import Control.Monad.Identity
 
 import qualified Data.ByteString.Char8 as B  -- + templates
+import qualified Data.ByteString.Lazy.Char8 as LB  -- + templates
 import Data.Text.Lazy (unpack)  -- req, serialize
 import qualified Data.Text as DT  
 
@@ -99,9 +100,9 @@ data EquityAccountType = Committed | RollingPatronage
    deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 data Member = Member {
-  firstName::String
+  firstName::String, 
   --lastName::String
-  --id::Integer
+  memberId::Integer
   --acceptedOn::Day
   --leftOn::Day
 } deriving (Show, Eq, Ord, Data, Typeable)
@@ -113,7 +114,7 @@ data FinancialResults = FinancialResults {
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 data Cooperative = Cooperative {
-  id::Integer,
+  cooperativeId::Integer,
   name::String,
   username::Email,
   bookkeeperFirstName::String,
@@ -280,8 +281,9 @@ $(makeAcidic ''Globals ['putIt, 'getIt])
 
 --------------SERIALIZE------------------------
 instance ToJSON Member where
-  toJSON Member{firstName=fn} = 
-  	 object ["firstName" .= fn]
+  toJSON Member{firstName=fn, memberId=i} = 
+  	 object ["firstName" .= fn,
+                 "memberId" .= i]
 
 instance ToJSON WorkPatronage where
   toJSON WorkPatronage{work=work,skillWeightedWork=skillWeightedWork,
@@ -377,40 +379,6 @@ getLatestFiscalPeriods ref = do
 -- putCooperative :: PersistentConnection -> ServerPartR
 -- getCooperative :: PersistentConnection -> ServerPartR
 
-
-putMember :: PersistConnection -> ServerPartR
-putMember ref = do -- get all parameters for member
-  firstName <- lookString "firstName"
-  let member = Member firstName
-  g <- query' ref GetIt
-  let mems = members g
-  g2 <- update' ref (PutIt g{members = mems ++ [member]})
-  ok $ toResponse ()
-     
--- detail
-getMembers :: PersistConnection -> ServerPartR
-getMembers ref = do -- get sum of equity balances with each member
-  g <- query' ref GetIt
-  let ms = members g
-  ok $ toResponse $ JSONData ms
-
--- putMemberRquityAccount
-
-
--- getMemberEquityAccounts
-        
-
-
-getMemberPatronage :: PersistConnection -> ServerPartR
-getMemberPatronage ref =  -- replace with get all for period
-  path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) -> do
-    g <- query' ref GetIt
-    let ps = patronage g
-    let Just m = L.find ((\i -> i == idIn). firstName) $ members g
-    let Just p = M.lookup m ps
-    ok $ toResponse $ JSONData $ head p  
-
-
 -- putDefaultDisbursalSchedule
 -- getDefaultDisbursalSchedule
 
@@ -432,6 +400,41 @@ putCalcMethod ref =
       g <- query' ref GetIt
       g2 <- update' ref $ PutIt g{settings = Just (methodName, pw, [])}
       ok $ toResponse ()
+
+
+
+putMember :: PersistConnection -> ServerPartR
+putMember ref = do -- get all parameters for member
+  firstName <- lookString "firstName"
+  let member = Member firstName 1
+  g <- query' ref GetIt
+  let mems = members g
+  g2 <- update' ref (PutIt g{members = mems ++ [member]})
+  ok $ toResponse ()
+     
+-- detail
+getMembers :: PersistConnection -> ServerPartR
+getMembers ref = do -- get sum of equity balances with each member
+  g <- query' ref GetIt
+  let ms = members g
+  ok $ toResponse $ JSONData ms
+
+-- putMemberRquityAccount
+
+
+-- getMemberEquityAccounts
+        
+
+
+getAllMemberPatronage :: PersistConnection -> ServerPartR
+getAllMemberPatronage ref = 
+  path $ \(fiscalPeriodStr::String) -> do
+    let Just fiscalPeriod = decode $ LB.pack fiscalPeriodStr
+    Globals{patronage=mps} <- query' ref GetIt 
+    let mpAll = M.map (L.find (\p -> performedOver p == fiscalPeriod)) mps 
+    let (mp, mu) = M.partition MB.isJust mpAll
+    ok $ toResponse $ JSONData $ (M.toList mp, M.keys mu)
+
 
 putMemberPatronage :: PersistConnection -> ServerPartR
 putMemberPatronage ref = 
@@ -546,11 +549,12 @@ capaApp ref hState = msum [
        method GET >> getAllFinancialResultsDetail ref
      , method POST >> putFinancialResults ref ]
   , dir "surplus" $ dir "allocate" $ dir "method" $ method POST >> putCalcMethod ref
-  , dir "members" $ method GET >> getMembers ref  
+  , dir "members" $ msum [
+        nullDir >> method GET >> getMembers ref  
+      , dir "patronage" $ method GET >> getAllMemberPatronage ref ]
   , dir "member" $ msum [ 
          method POST >> putMember ref
        , method POST >> putMemberPatronage ref
-       , method GET >> getMemberPatronage ref 
        , dir "equity" $ msum [
            dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref
          , dir "history" $ method POST >> putEquityAction ref ] ]
@@ -565,14 +569,19 @@ type TemplateStore = HeistState Identity
 type ServerPartR = ServerPart Response
 
 main = do
+   let f1 = FiscalPeriod (GregorianMonth 2012 1) Year
+   let f2 = FiscalPeriod (GregorianMonth 2011 1) Year
+   let (m1, m2, m3) = (Member "Jonh" 1, Member "Kanishka" 2, Member "Dave" 3)
    let g0 = Globals 
               (Cooperative 
                   1 "Coop1" "k@m.com" "John" 
                   (fromGregorian 2010 1 1) 
                   (fromGregorian 2010 2 2) (FiscalCalendarType 1 Year))
               Nothing
-              []
-              M.empty
+              [m1, m2, m3]
+              (M.fromList [ (m1, [WorkPatronage 5 4 3 2 1 f1])
+                          , (m2, [WorkPatronage 10 20 30 40 50 f2])
+                          , (m3, []) ])
               M.empty
               [FinancialResults 
                   (FiscalPeriod (GregorianMonth 2012 1) Year) 
@@ -596,8 +605,7 @@ main = do
    either (error . concat) (serve Nothing . capaApp x) ehs 
 
 {---------------TODO------------------
--implement expanded services 
--implement form behavior, finish edits and pickers
+-implement expanded services + form behavior, finish edits and pickers
 
 -use across different date ranges
 -add coop parameter
