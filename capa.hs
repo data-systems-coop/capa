@@ -167,7 +167,7 @@ lookString = fmap unpack . lookText
 lookRead :: Read a => String -> ServerPart a
 lookRead = fmap read . lookString
 
-readRational :: String -> Rational  --truncate to 100ths
+readRational :: String -> Rational  -- round to 100ths
 readRational = toRational . fst . head . readFloat
 
 ------------------------CALCS---------------------
@@ -319,7 +319,7 @@ instance ToJSON Allocation where
          object ["recordedOn" .= toGregorian rc,
                  "resultOf" .= toJSON ro]
 
---FromParams for PatronageWeights, WorkPatronage, FinancialResults, MemberEqAct
+--FromQParams for PatronageWeights, WorkPatronage, FinancialResults, MemberEqAct
 
 instance FromJSON MemberEquityAction where
   parseJSON (Object v) = 
@@ -355,14 +355,14 @@ coopSummary ref = do
   v <- query' ref GetIt
   ok $ toResponse $ show v
 
--- getFiscalPeriods
+-- getFiscalPeriods :: PersistentConnectin -> ServerPartR
 
 -- putCooperative :: PersistentConnection -> ServerPartR
-
 -- getCooperative :: PersistentConnection -> ServerPartR
 
+
 putMember :: PersistConnection -> ServerPartR
-putMember ref = 
+putMember ref = -- get all parameters for member
   do method POST
      firstName <- lookString "firstName"
      let member = Member firstName
@@ -371,16 +371,24 @@ putMember ref =
      g2 <- update' ref (PutIt g{members = mems ++ [member]})
      ok $ toResponse ()
      
+-- detail
 getMembers :: PersistConnection -> ServerPartR
-getMembers ref = 
+getMembers ref = -- get sum of equity balances with each member
   do method GET
      g <- query' ref GetIt
      let ms = members g
      ok $ toResponse $ do 
      	encode ms
 
+-- putMemberRquityAccount
+
+
+-- getMemberEquityAccounts
+        
+
+
 getMemberPatronage :: PersistConnection -> ServerPartR
-getMemberPatronage ref = 
+getMemberPatronage ref =  -- replace with get all for period
   path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) ->
   do method GET 
      g <- query' ref GetIt
@@ -390,12 +398,11 @@ getMemberPatronage ref =
      ok $ toResponse $ do
      	encode $ head p  
 
+
 -- putDefaultDisbursalSchedule
-        
 -- getDefaultDisbursalSchedule
 
--- getCalcMethod 
-
+-- getCalcMethod
 putCalcMethod :: PersistConnection -> ServerPartR
 putCalcMethod ref = 
   path $ \(methodName::String) -> 
@@ -425,7 +432,7 @@ putMemberPatronage ref =
      	seniority <- lookRead "seniority"
      	quality <- lookRead "quality"
      	revenueGenerated <- lookRead "revenueGenerated"
-	performedOverStr <- lookBS "performedOver" --use path instead
+	performedOverStr <- lookBS "performedOver" -- use path instead
 	let Just performedOver = decode performedOverStr
      	let p = WorkPatronage{work=work, 
 	      	       skillWeightedWork=skillWeightedWork,
@@ -443,7 +450,7 @@ getAllFinancialResultsDetail ref =
      let res = financialResults g
      let allocs = M.keys $ allocations g
      let resDetail = 
-           map 
+           map  -- match with allocation if any
              (\r@(FinancialResults o s) -> 
                MB.maybe (r, Nothing)
                (\a -> (r, Just a))
@@ -457,7 +464,6 @@ putFinancialResults ref =
   do method POST
      surplus <- lookRead "surplus"
      overStr <- lookBS "over"
-     liftIO $ putStrLn $ show overStr     
      let Just over = decode overStr
      let res = FinancialResults over surplus
      g <- query' ref GetIt
@@ -480,6 +486,13 @@ postAllocateToMembers ref =
      ok $ toResponse $ do 
      	encode $ M.toList me
 
+-- postAllocationDisbursal
+    -- save allocation entry, all allocs, all distribs    
+        
+
+-- getActionsForMemberEquityAccount
+    -- pair each result with running balance, and any associated allocation entry
+        
 putEquityAction :: PersistConnection -> ServerPartR
 putEquityAction ref = 
   do method POST
@@ -500,9 +513,7 @@ postScheduleAllocateDisbursal ref =
      let Just (_, _, disbursalSchedule) = settings g
      ok $ toResponse $ show $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
                           
--- getEquityHistory :: PersistConnection -> ServerPartR
--- getEquitySummary 
---
+
 
 --------------APP CONTROLLER------------------------
 templateResponse name hState = 
@@ -573,30 +584,36 @@ main = do
    either (error . concat) (serve Nothing . capaApp x) ehs 
 
 {---------------TODO------------------
--refine types and calcs more ~ a little
--expand serialize, services ~ halfway
--implement form behavior, add datepicker
+-implement expanded services 
+-implement form behavior, finish edits and pickers
 
+-refine types, calcs
 -use across different date ranges
--filter by coop
+-add coop parameter
 
--authenticate + user session
--persist postgres
--polish UI
--multiple source files/modules
--automate test(+travis), run, release, refresh. setup hosting. document.
+-authenticate, session
+-postgres, liquibase
+-modules
+-automate test w/travis
+-automate run. kill
+-automate release, refresh
+-select hosting
 -filter deactivated members, accounts
--use sets instead of lists
+-sets not lists
+-url paths, template naming conventions
 
--configuration. automate backups, restore. 
--admin UI, export method
--(sys)logging, automate monitor.
--req + spec docs/website. bugs + enhance tracker. training tutorials.
--javascript reorganize, library survey
--remote support
--creation/install and vm of prod env
--better error with dead end web paths
--meta: pricing/donations/developer and financial health monitor
--interest daily job
--patronage - salary
+-config
+-automate backup, restore
+-export procedure
+-(sys)log
+-create monitoring, schedule backup
+-req, spec wiki
+-bugs, enhance tracker
+-user manual, dev manual
+-javascript reorganize, widget and binding library survey
+-remote support procedures
+-create prod env vm with bootstrap script
+-handle partial path fail
+-meta: cost estimate/donation/developer avail and financial health monitor
+-interest calc daily job
 -}
