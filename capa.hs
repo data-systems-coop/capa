@@ -1,12 +1,14 @@
-{-# Language OverloadedStrings, ScopedTypeVariables, DeriveDataTypeable, 
-    	     TemplateHaskell, TypeFamilies #-}
+{-# Language OverloadedStrings, 
+     ScopedTypeVariables, 
+     DeriveDataTypeable, 
+     TemplateHaskell, 
+     TypeFamilies #-}
 module Main (main) where
 
-import Happstack.Lite
+import Happstack.Lite  -- web / service layer
+import Happstack.Server.Routing (dirs)
 
-import Happstack.Server.Routing as HSR (dirs)
-
-import Text.Blaze.Html5 (html, p, toHtml)
+import Text.Blaze.Html5 (html, p, toHtml) -- present, html, temlate
 import Blaze.ByteString.Builder (toByteString)
 import Heist (loadTemplates, HeistConfig(..), HeistState, initHeist,
               defaultLoadTimeSplices, defaultInterpretedSplices)
@@ -14,43 +16,43 @@ import Heist.Interpreted (renderTemplate)
 import Control.Monad.Trans.Either
 import Control.Monad.Identity
 
-import Data.Text.Lazy (unpack)
-import qualified Data.Text as DT
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Char8 as B  -- + templates
+import Data.Text.Lazy (unpack)  -- req, serialize
+import qualified Data.Text as DT  
 
-import Data.Monoid
+import Data.Monoid    -- general + web 
 
 import Data.Ratio ((%))
---import Data.Default 
+-- import Data.Default 
 
-import qualified Data.Map as M
+import qualified Data.Map as M  -- data
 
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (liftIO)  -- debug
 
-import Control.Exception    ( bracket )
+import Control.Exception    ( bracket )     -- util
 
-import Control.Monad.Reader ( ask )
+import Data.Data            ( Data, Typeable )  -- persist, (serialize?)
+
+import Control.Monad.Reader ( ask )           -- persist 
 import Control.Monad.State  ( get, put )
-import Data.Data            ( Data, Typeable )
-
 import Data.Acid            ( AcidState, Query, Update, makeAcidic, openLocalState )
 import Data.Acid.Advanced   ( query', update' )
 import Data.SafeCopy        ( base, deriveSafeCopy )
 
-import Data.Aeson
+import Data.Aeson                              -- serialize (json) layer
 import qualified Data.Aeson.Types as AT
 import qualified Data.Aeson.Generic as AG
 import Control.Applicative
 import Data.Attoparsec.Number as AN
 import qualified Data.Vector as V
 
-import qualified Data.List as L
+import qualified Data.List as L             -- data, general util
 import qualified Data.Maybe as MB
 
-import Numeric (readFloat)
+import Numeric (readFloat)  -- num util
 
 import Data.Time (Day, fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
-                  addGregorianMonthsClip, addGregorianYearsClip)
+                  addGregorianMonthsClip, addGregorianYearsClip)    -- time util
 
 -----------------TYPES-------------------------------
 data WorkPatronage = WorkPatronage {
@@ -266,10 +268,7 @@ $(deriveSafeCopy 0 'base ''FiscalCalendarType)
   
 putIt :: Globals -> Update Globals Globals
 putIt g = 
-  do --g@Globals{members=ms,calcMethod=m,patronage=p} <- get
-     --let newMem = Member $ show n
-     --put $ g{members = ms ++ [newMem]}
-     put g
+  do put g
      return g
 
 getIt :: Query Globals Globals
@@ -314,7 +313,7 @@ instance ToJSON FinancialResults where
   toJSON FinancialResults{over=ov,surplus=sr,allocatedOn=ao} = 
          object ["over" .= toJSON ov,
                  "surplus" .= sr, 
-                 "allocatedOn" .= toJSON ao] --just then toGregorian, nothing then null
+                 "allocatedOn" .= toJSON ao]
 
 instance ToJSON Day where
   toJSON d = 
@@ -357,27 +356,43 @@ coopSummary ref = do
   v <- query' ref GetIt
   ok $ toResponse $ show v
 
--- getFiscalPeriods :: PersistentConnectin -> ServerPartR
+getLatestFiscalPeriods :: PersistConnection -> ServerPartR
+getLatestFiscalPeriods ref = do
+  Globals{cooperative=Cooperative{fiscalCalendarType=ft}} <- query' ref GetIt
+  let FiscalCalendarType{startf=startMonth, periodTypef=pt} = ft
+  UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
+  let (endYear,_,_) = toGregorian $ addGregorianYearsClip 2 day
+  let end = fromGregorian endYear startMonth 1
+  let stepBack = 
+        if pt == Year 
+        then addGregorianYearsClip (-1)
+        else addGregorianMonthsClip (-3)
+  let enumStarts d = d : (enumStarts $ stepBack d)
+  let periods = 
+        fmap 
+          ((\(yr,mo,_) -> FiscalPeriod (GregorianMonth yr mo) pt) . toGregorian)
+          (take 10 $ enumStarts end)
+  ok $ toResponse $ JSONData periods
 
 -- putCooperative :: PersistentConnection -> ServerPartR
 -- getCooperative :: PersistentConnection -> ServerPartR
 
 
 putMember :: PersistConnection -> ServerPartR
-putMember ref = -- get all parameters for member
-  do firstName <- lookString "firstName"
-     let member = Member firstName
-     g <- query' ref GetIt
-     let mems = members g
-     g2 <- update' ref (PutIt g{members = mems ++ [member]})
-     ok $ toResponse ()
+putMember ref = do -- get all parameters for member
+  firstName <- lookString "firstName"
+  let member = Member firstName
+  g <- query' ref GetIt
+  let mems = members g
+  g2 <- update' ref (PutIt g{members = mems ++ [member]})
+  ok $ toResponse ()
      
 -- detail
 getMembers :: PersistConnection -> ServerPartR
-getMembers ref = -- get sum of equity balances with each member
-  do g <- query' ref GetIt
-     let ms = members g
-     ok $ toResponse $ JSONData ms
+getMembers ref = do -- get sum of equity balances with each member
+  g <- query' ref GetIt
+  let ms = members g
+  ok $ toResponse $ JSONData ms
 
 -- putMemberRquityAccount
 
@@ -388,12 +403,12 @@ getMembers ref = -- get sum of equity balances with each member
 
 getMemberPatronage :: PersistConnection -> ServerPartR
 getMemberPatronage ref =  -- replace with get all for period
-  path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) ->
-  do g <- query' ref GetIt
-     let ps = patronage g
-     let Just m = L.find ((\i -> i == idIn). firstName) $ members g
-     let Just p = M.lookup m ps
-     ok $ toResponse $ JSONData $ head p  
+  path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) -> do
+    g <- query' ref GetIt
+    let ps = patronage g
+    let Just m = L.find ((\i -> i == idIn). firstName) $ members g
+    let Just p = M.lookup m ps
+    ok $ toResponse $ JSONData $ head p  
 
 
 -- putDefaultDisbursalSchedule
@@ -402,21 +417,21 @@ getMemberPatronage ref =  -- replace with get all for period
 -- getCalcMethod
 putCalcMethod :: PersistConnection -> ServerPartR
 putCalcMethod ref = 
-  path $ \(methodName::String) -> 
-      do let lookRational = fmap readRational . lookString
-     	 workw <- lookRational "workw"
-     	 skillWeightedWorkw <- lookRational "skillWeightedWorkw"
-     	 seniorityw <- lookRational "seniorityw"
-     	 qualityw <- lookRational "qualityw"
-     	 revenueGeneratedw <- lookRational "revenueGeneratedw"
-     	 let pw = PatronageWeights{workw=workw, 
+  path $ \(methodName::String) -> do 
+      let lookRational = fmap readRational . lookString
+      workw <- lookRational "workw"
+      skillWeightedWorkw <- lookRational "skillWeightedWorkw"
+      seniorityw <- lookRational "seniorityw"
+      qualityw <- lookRational "qualityw"
+      revenueGeneratedw <- lookRational "revenueGeneratedw"
+      let pw = PatronageWeights{workw=workw, 
      	      	  skillWeightedWorkw=skillWeightedWorkw, 
      	          seniorityw = seniorityw, 
 		  qualityw = qualityw, 
 		  revenueGeneratedw = revenueGeneratedw}
-     	 g <- query' ref GetIt
-     	 g2 <- update' ref $ PutIt g{settings = Just (methodName, pw, [])}
-     	 ok $ toResponse ()
+      g <- query' ref GetIt
+      g2 <- update' ref $ PutIt g{settings = Just (methodName, pw, [])}
+      ok $ toResponse ()
 
 putMemberPatronage :: PersistConnection -> ServerPartR
 putMemberPatronage ref = 
@@ -439,10 +454,10 @@ putMemberPatronage ref =
      	ok $ toResponse ()
 
 getAllFinancialResultsDetail :: PersistConnection -> ServerPartR
-getAllFinancialResultsDetail ref = 
-  do g <- query' ref GetIt
-     let res = financialResults g
-     ok $ toResponse $ JSONData res
+getAllFinancialResultsDetail ref = do 
+  g <- query' ref GetIt
+  let res = financialResults g
+  ok $ toResponse $ JSONData res
        
 putFinancialResults :: PersistConnection -> ServerPartR
 putFinancialResults ref = 
@@ -530,7 +545,7 @@ capaApp ref hState = msum [
   , dir "financial" $ dir "results" $ msum [ 
        method GET >> getAllFinancialResultsDetail ref
      , method POST >> putFinancialResults ref ]
-  , dirs "surplus/allocate/method" $ method POST >> putCalcMethod ref
+  , dir "surplus" $ dir "allocate" $ dir "method" $ method POST >> putCalcMethod ref
   , dir "members" $ method GET >> getMembers ref  
   , dir "member" $ msum [ 
          method POST >> putMember ref
@@ -542,6 +557,7 @@ capaApp ref hState = msum [
   , dir "equity" $ msum [
        dir "members" $ msum [
          dir "allocate" $ method POST >> postAllocateToMembers ref ] ]
+  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref
   , coopSummary ref]
 
 type PersistConnection = AcidState Globals
@@ -554,7 +570,7 @@ main = do
                   1 "Coop1" "k@m.com" "John" 
                   (fromGregorian 2010 1 1) 
                   (fromGregorian 2010 2 2) (FiscalCalendarType 1 Year))
-              Nothing -- [(GregorianDuration 0 3, 1%4),(GregorianDuration 1 6, 3%4)] 
+              Nothing
               []
               M.empty
               M.empty
@@ -583,12 +599,11 @@ main = do
 -implement expanded services 
 -implement form behavior, finish edits and pickers
 
--refine types, calcs
 -use across different date ranges
 -add coop parameter
 
--authenticate, session
--postgres, liquibase
+-authenticate, session <<<
+-postgres, liquibase <<<
 -modules
 -automate test w/travis
 -automate run. kill
@@ -601,7 +616,7 @@ main = do
 -config
 -automate backup, restore
 -export procedure
--(sys)log
+-logging (serverside logging, jslogger + log4javascript)
 -create monitoring, schedule backup
 -req, spec wiki
 -bugs, enhance tracker
@@ -612,4 +627,5 @@ main = do
 -handle partial path fail
 -meta: cost estimate/donation/developer avail and financial health monitor
 -interest calc daily job
+-refine types, calcs
 -}
