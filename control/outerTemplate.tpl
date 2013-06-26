@@ -17,6 +17,21 @@ function formatFiscalPeriod(per){
 function formatGregorianDay(day){
  return sprintf('%s/%s/%s', day[2], day[1], day[0])
 }
+function fiscalPeriodPicker(id){
+  $.getJSON("/fiscal/periods",function(periods){
+    $.each(periods,function(i,period){
+      addPeriod(period, id)
+    })
+  })
+}
+function addPeriod(per, id){ 
+  var opt = 
+    sprintf("<option value='%s'>%s</option>", 
+            JSON.stringify(per), 
+            formatFiscalPeriod(per))
+  $(id).append(opt)
+}
+
 </script>
 </head>
 <body>
