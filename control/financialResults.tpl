@@ -27,14 +27,6 @@ function appendFinancialResults(res){
          alloc)
   $("#results").append(row)
 }
-function formatFiscalPeriod(per){
- return ( per.periodType == "Year" ) ? 
-   sprintf("FY %s", per.start.year) :
-   sprintf("FQ %s/%s", per.start.month, per.start.year)
-}
-function formatGregorianDay(day){
- return sprintf('%s/%s/%s', day[2], day[1], day[0])
-}
 </script>
 
 <div class="row">

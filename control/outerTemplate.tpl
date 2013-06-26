@@ -7,6 +7,17 @@
 <script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
 <script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js"></script>
 <script src="https://raw.github.com/eternicode/bootstrap-datepicker/master/js/bootstrap-datepicker.js"></script> 
+<script> 
+//library
+function formatFiscalPeriod(per){
+ return ( per.periodType == "Year" ) ? 
+   sprintf("FY %s", per.start.year) :
+   sprintf("FQ %s/%s", per.start.month, per.start.year)
+}
+function formatGregorianDay(day){
+ return sprintf('%s/%s/%s', day[2], day[1], day[0])
+}
+</script>
 </head>
 <body>
 
