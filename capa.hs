@@ -106,13 +106,8 @@ data Member = Member {
 
 data FinancialResults = FinancialResults { 
   over::FiscalPeriod,
-  surplus::Money
-  --net-inc
-} deriving (Show, Read, Eq, Ord, Data, Typeable)
-
-data Allocation = Allocation { 
-  recordedOn::Day,
-  resultOf::FiscalPeriod
+  surplus::Money,   --net-inc
+  allocatedOn::Maybe Day
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 data Cooperative = Cooperative {
@@ -169,6 +164,13 @@ lookRead = fmap read . lookString
 
 readRational :: String -> Rational  -- round to 100ths
 readRational = toRational . fst . head . readFloat
+
+newtype JSONData a = JSONData{ getJSONData :: a }
+
+instance ToJSON a => ToMessage (JSONData a) where
+  toMessage (JSONData d) = encode d
+  toContentType _ = B.pack ("application/json")
+  
 
 ------------------------CALCS---------------------
 patronageTotal = 
@@ -243,7 +245,7 @@ data Globals = Globals {
   patronage :: M.Map Member [WorkPatronage],
   accounts :: M.Map Member (M.Map MemberEquityAccount [MemberEquityAction]),
   financialResults :: [FinancialResults],
-  allocations :: M.Map Allocation [MemberEquityAction]
+  allocations :: M.Map FinancialResults [MemberEquityAction]
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 $(deriveSafeCopy 0 'base ''Globals)
@@ -257,7 +259,6 @@ $(deriveSafeCopy 0 'base ''PeriodType)
 $(deriveSafeCopy 0 'base ''GregorianDuration)
 $(deriveSafeCopy 0 'base ''MemberEquityAction)
 $(deriveSafeCopy 0 'base ''MemberEquityAccount)
-$(deriveSafeCopy 0 'base ''Allocation)
 $(deriveSafeCopy 0 'base ''Cooperative)
 $(deriveSafeCopy 0 'base ''EquityActionType)
 $(deriveSafeCopy 0 'base ''EquityAccountType)
@@ -310,14 +311,15 @@ instance ToJSON FiscalPeriod where
 	  	 "periodType" .= AG.toJSON pt]
 
 instance ToJSON FinancialResults where
-  toJSON FinancialResults{over=ov,surplus=sr} = 
+  toJSON FinancialResults{over=ov,surplus=sr,allocatedOn=ao} = 
          object ["over" .= toJSON ov,
-                 "surplus" .= sr]
+                 "surplus" .= sr, 
+                 "allocatedOn" .= toJSON ao] --just then toGregorian, nothing then null
 
-instance ToJSON Allocation where
-  toJSON Allocation{recordedOn=rc,resultOf=ro} = 
-         object ["recordedOn" .= toGregorian rc,
-                 "resultOf" .= toJSON ro]
+instance ToJSON Day where
+  toJSON d = 
+    let (yr,mo,dy) = toGregorian d
+    in Array $ V.fromList [toJSON yr,toJSON mo,toJSON dy]
 
 --FromQParams for PatronageWeights, WorkPatronage, FinancialResults, MemberEqAct
 
@@ -363,8 +365,7 @@ coopSummary ref = do
 
 putMember :: PersistConnection -> ServerPartR
 putMember ref = -- get all parameters for member
-  do method POST
-     firstName <- lookString "firstName"
+  do firstName <- lookString "firstName"
      let member = Member firstName
      g <- query' ref GetIt
      let mems = members g
@@ -374,11 +375,9 @@ putMember ref = -- get all parameters for member
 -- detail
 getMembers :: PersistConnection -> ServerPartR
 getMembers ref = -- get sum of equity balances with each member
-  do method GET
-     g <- query' ref GetIt
+  do g <- query' ref GetIt
      let ms = members g
-     ok $ toResponse $ do 
-     	encode ms
+     ok $ toResponse $ JSONData ms
 
 -- putMemberRquityAccount
 
@@ -390,13 +389,11 @@ getMembers ref = -- get sum of equity balances with each member
 getMemberPatronage :: PersistConnection -> ServerPartR
 getMemberPatronage ref =  -- replace with get all for period
   path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriod::Integer) ->
-  do method GET 
-     g <- query' ref GetIt
+  do g <- query' ref GetIt
      let ps = patronage g
      let Just m = L.find ((\i -> i == idIn). firstName) $ members g
      let Just p = M.lookup m ps
-     ok $ toResponse $ do
-     	encode $ head p  
+     ok $ toResponse $ JSONData $ head p  
 
 
 -- putDefaultDisbursalSchedule
@@ -406,8 +403,7 @@ getMemberPatronage ref =  -- replace with get all for period
 putCalcMethod :: PersistConnection -> ServerPartR
 putCalcMethod ref = 
   path $ \(methodName::String) -> 
-      do method POST 
-      	 let lookRational = fmap readRational . lookString
+      do let lookRational = fmap readRational . lookString
      	 workw <- lookRational "workw"
      	 skillWeightedWorkw <- lookRational "skillWeightedWorkw"
      	 seniorityw <- lookRational "seniorityw"
@@ -425,8 +421,7 @@ putCalcMethod ref =
 putMemberPatronage :: PersistConnection -> ServerPartR
 putMemberPatronage ref = 
   path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriodStr::String) ->
-     do method POST
-	liftIO $ putStrLn $ show fiscalPeriodStr
+     do liftIO $ putStrLn $ show fiscalPeriodStr
         work <- lookRead "work"
      	skillWeightedWork <- lookRead "skillWeightedWork"
      	seniority <- lookRead "seniority"
@@ -445,27 +440,16 @@ putMemberPatronage ref =
 
 getAllFinancialResultsDetail :: PersistConnection -> ServerPartR
 getAllFinancialResultsDetail ref = 
-  do method GET
-     g <- query' ref GetIt
+  do g <- query' ref GetIt
      let res = financialResults g
-     let allocs = M.keys $ allocations g
-     let resDetail = 
-           map  -- match with allocation if any
-             (\r@(FinancialResults o s) -> 
-               MB.maybe (r, Nothing)
-               (\a -> (r, Just a))
-               (L.find (\(Allocation rc ro) -> ro == o) allocs))
-             res
-     ok $ toResponse $ do 
-       encode resDetail
+     ok $ toResponse $ JSONData res
        
 putFinancialResults :: PersistConnection -> ServerPartR
 putFinancialResults ref = 
-  do method POST
-     surplus <- lookRead "surplus"
+  do surplus <- lookRead "surplus"
      overStr <- lookBS "over"
      let Just over = decode overStr
-     let res = FinancialResults over surplus
+     let res = FinancialResults over surplus Nothing
      g <- query' ref GetIt
      let allRes = financialResults g
      _ <- update' ref (PutIt g{financialResults=allRes ++ [res]})
@@ -474,17 +458,15 @@ putFinancialResults ref =
 
 postAllocateToMembers :: PersistConnection -> ServerPartR
 postAllocateToMembers ref = 
-  do method POST
+  do UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
      surplus <- lookRead "surplus"
      overStr <- lookBS "over"
      let Just over = decode overStr
-     let res = FinancialResults over surplus
+     let res = FinancialResults over surplus $ Just day
      g <- query' ref GetIt
      let Just (name, parameters, _) = settings g
-     UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
      let me = allocateEquityFor res (M.map head (patronage g)) parameters day
-     ok $ toResponse $ do 
-     	encode $ M.toList me
+     ok $ toResponse $ JSONData $ M.toList me
 
 -- postAllocationDisbursal
     -- save allocation entry, all allocs, all distribs    
@@ -495,8 +477,7 @@ postAllocateToMembers ref =
         
 putEquityAction :: PersistConnection -> ServerPartR
 putEquityAction ref = 
-  do method POST
-     actionType <- lookRead "actionType"
+  do actionType <- lookRead "actionType"
      amount <- lookRead "amount"
      performedOnStr <- lookBS "performedOn"
      let Just performedOn = decode performedOnStr
@@ -506,8 +487,7 @@ putEquityAction ref =
 
 postScheduleAllocateDisbursal :: PersistConnection -> ServerPartR
 postScheduleAllocateDisbursal ref = 
-  do method POST
-     allocateActionStr <- lookBS "allocateAction"
+  do allocateActionStr <- lookBS "allocateAction"
      let Just allocateAction = decode allocateActionStr
      g <- query' ref GetIt
      let Just (_, _, disbursalSchedule) = settings g
@@ -517,6 +497,7 @@ postScheduleAllocateDisbursal ref =
 
 --------------APP CONTROLLER------------------------
 templateResponse name hState = 
+  nullDir >> method GET >>
   let rendered = runIdentity $ renderTemplate hState name
   in maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
   	   (\(bldr,_) -> ok $ toResponse $ toByteString bldr)
@@ -525,32 +506,42 @@ templateResponse name hState =
 
 ---------------ENTRY---------------------------------
 capaApp :: PersistConnection -> TemplateStore -> ServerPartR
-capaApp ref hState = 
-  msum 
-  [
-    dirs "control/coop/summary" $ templateResponse "coopSummary" hState
-  , dirs "control/member/accounts" $ templateResponse "memberAccounts" hState
-  , dirs "control/financial/results" $ templateResponse "financialResults" hState
-  , dirs "control/members/patronage/period" $ templateResponse "periodPatronage" hState
-  , dirs "control/equity/members/allocationsDisbursals" $ 
-           templateResponse "allocationsDisbursals" hState
-  , dirs "control/members/add" $ templateResponse "newMember" hState
-  , dirs "control/member/account/action/add" $ templateResponse "addAction" hState
-  , dirs "control/financial/result/record" $ templateResponse "recordResult" hState
-  , dirs "control/member/patronage/record" $ templateResponse "recordPatronage" hState
-  , dirs "control/coop/register" $ templateResponse "registerCoop" hState
-  , dirs "control/coop/settings" $ templateResponse "coopSettings" hState
-  
-  , dir "members" $ getMembers ref
-  , dir "member" $ putMember ref
-  , dirs "financial/results" $ getAllFinancialResultsDetail ref
-  , dirs "financial/results" $ putFinancialResults ref
-  , dirs "surplus/allocate/method" $ putCalcMethod ref
-  , dir "member" $ putMemberPatronage ref
-  , dir "member" $ getMemberPatronage ref
-  , dirs "equity/members/allocate" $ postAllocateToMembers ref
-  , dirs "member/equity/disburse" $ postScheduleAllocateDisbursal ref
-  , dirs "member/equity/history" $ putEquityAction ref
+capaApp ref hState = msum [
+    dir "control" $ msum [
+         dir "coop" $ msum [
+            dir "summary" $ templateResponse "coopSummary" hState
+          , dir "register" $ templateResponse "registerCoop" hState
+          , dir "settings" $ templateResponse "coopSettings" hState ]
+       , dir "member" $ msum [
+            dir "accounts" $ templateResponse "memberAccounts" hState
+          , dir "account" $ dir "action" $ dir "add" $ 
+              templateResponse "addAction" hState
+          , dir "patronage" $ dir "record" $ 
+              templateResponse "recordPatronage" hState ]
+       , dir "members" $ msum [
+             dir "patronage" $ dir "period" $ templateResponse "periodPatronage" hState
+           , dir "add" $ templateResponse "newMember" hState ]
+       , dir "financial" $ dir "results" $ msum [
+             templateResponse "financialResults" hState
+           , dir "record" $ templateResponse "recordResult" hState ]
+       , dirs "equity" $ msum [ 
+            dir "members"  $ dir "allocationsDisbursals" $ 
+              templateResponse "allocationsDisbursals" hState ] ]
+  , dir "financial" $ dir "results" $ msum [ 
+       method GET >> getAllFinancialResultsDetail ref
+     , method POST >> putFinancialResults ref ]
+  , dirs "surplus/allocate/method" $ method POST >> putCalcMethod ref
+  , dir "members" $ method GET >> getMembers ref  
+  , dir "member" $ msum [ 
+         method POST >> putMember ref
+       , method POST >> putMemberPatronage ref
+       , method GET >> getMemberPatronage ref 
+       , dir "equity" $ msum [
+           dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref
+         , dir "history" $ method POST >> putEquityAction ref ] ]
+  , dir "equity" $ msum [
+       dir "members" $ msum [
+         dir "allocate" $ method POST >> postAllocateToMembers ref ] ]
   , coopSummary ref]
 
 type PersistConnection = AcidState Globals
@@ -567,10 +558,15 @@ main = do
               []
               M.empty
               M.empty
-              [FinancialResults (FiscalPeriod (GregorianMonth 2012 1) Year) 200] 
-              (M.fromList [(Allocation 
-                              (fromGregorian 2011 1 2) 
-                              (FiscalPeriod (GregorianMonth 2012 1) Year), [])])
+              [FinancialResults 
+                  (FiscalPeriod (GregorianMonth 2012 1) Year) 
+                  200
+                  $ Just (fromGregorian 2011 1 2)] 
+              (M.fromList [(FinancialResults  
+                              (FiscalPeriod (GregorianMonth 2012 1) Year)
+                              200
+                              $ Just (fromGregorian 2011 1 2), 
+                            [])])
    x <- openLocalState g0
    ehs <- runEitherT $ do 
      templateRepo <- loadTemplates "control"

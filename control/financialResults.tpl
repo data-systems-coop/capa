@@ -1,6 +1,40 @@
 <apply template="outerTemplate">
 
 <script>
+$(document).ready(function(){
+  loadAllFinancialResults()
+})
+
+function loadAllFinancialResults(){
+  $.getJSON("/financial/results",function(data){
+     $("#results").data("results", data)
+     $.each(data, function(i,r){
+       appendFinancialResults(r)
+     })
+   })
+}
+function appendFinancialResults(res){
+  var alloc = 
+    (res.allocatedOn == null) ?
+      sprintf(
+        '<a href="/control/equity/members/allocationsDisbursals?over=%s"' + 
+	' class="btn btn-primary">Allocate</a>', encodeURI(JSON.stringify(res.over))) :
+      formatGregorianDay(res.allocatedOn)
+  var row = 
+     sprintf('<tr><td>%s</td><td>$%s</td><td>%s</td>', 
+         formatFiscalPeriod(res.over), 
+         res.surplus, 
+         alloc)
+  $("#results").append(row)
+}
+function formatFiscalPeriod(per){
+ return ( per.periodType == "Year" ) ? 
+   sprintf("FY %s", per.start.year) :
+   sprintf("FQ %s/%s", per.start.month, per.start.year)
+}
+function formatGregorianDay(day){
+ return sprintf('%s/%s/%s', day[2], day[1], day[0])
+}
 </script>
 
 <div class="row">
@@ -9,11 +43,7 @@
 <thead>
   <tr><th>Period</th><th>Surplus</th><th>Allocated</th>
 </thead>
-<tbody id="result">
-  <tr><td>FY 2011</td><td>$9,000</td>
-      <td><a href="#">3/1/2012</a></td></tr>
-  <tr><td>FY 2012</td><td>$3,000</td>
-       <td><button type="submit" class="btn btn-primary">Allocate</button></td></tr>
+<tbody id="results">
 </tbody>
 </table>
 </div>
@@ -21,7 +51,8 @@
 
 <div class="row">
 <div class="span2">
-<button type="submit" class="btn btn-primary">Record Result</button>
+<a class="btn btn-primary"
+   href="/control/financial/results/record">Record Result</a>
 </div>
 </div>
 
