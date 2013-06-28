@@ -7,7 +7,8 @@
 <script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
 <script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js"></script>
 <script src="https://raw.github.com/eternicode/bootstrap-datepicker/master/js/bootstrap-datepicker.js"></script> 
-<script> 
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery-url-parser/2.3.1/purl.min.js"></script>
+<script>
 //library
 function formatFiscalPeriod(per){
  return ( per.periodType == "Year" ) ? 
@@ -31,7 +32,21 @@ function addPeriod(per, id){
             formatFiscalPeriod(per))
   $(id).append(opt)
 }
-
+function seniorityPicker(id){
+  var levels = 
+    [{name:"Level 1", value: 1}, {name:"Level 2", value: 2}, 
+     {name:"Level 3", value: 3}, {name:"Level 4", value: 4}]
+  levels.forEach(function(lev){
+    $(id).append(sprintf("<option value='%s'>%s</option>",lev.value, lev.name))
+  })
+}
+function qualityPicker(id){
+  var levels = 
+   [{name:"Average", value:1}, {name:"Good", value:2}, {name:"Great", value:3}]
+  levels.forEach(function(lev){
+   $(id).append(sprintf("<option value='%s'>%s</option>",lev.value, lev.name))
+  })
+}
 </script>
 </head>
 <body>
