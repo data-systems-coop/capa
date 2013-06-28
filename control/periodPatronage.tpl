@@ -31,6 +31,7 @@ $(document).ready(function() {
 <div class="span8">
 <script>
 function createPatronageHeaders(fieldInfo){
+  //remove irrelvant, instead of add relevant, remove label field above.
   fieldInfo.forEach(function(el){
     $("#patronageHead").append(sprintf("<th>%s</th>",el.label))
   })

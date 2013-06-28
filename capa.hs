@@ -369,6 +369,7 @@ getLatestFiscalPeriods ref = do
         if pt == Year 
         then addGregorianYearsClip (-1)
         else addGregorianMonthsClip (-3)
+  
   let enumStarts d = d : (enumStarts $ stepBack d)
   let periods = 
         fmap 
@@ -412,6 +413,13 @@ putMember ref = do -- get all parameters for member
   g2 <- update' ref (PutIt g{members = mems ++ [member]})
   ok $ toResponse ()
      
+getMember :: PersistConnection -> ServerPartR
+getMember ref = do 
+  path $ \(mid::Integer) -> do
+    Globals{members=mems} <- query' ref GetIt
+    let possibleMem = L.find ((== mid) . memberId) mems
+    ok $ toResponse $ JSONData possibleMem
+
 -- detail
 getMembers :: PersistConnection -> ServerPartR
 getMembers ref = do -- get sum of equity balances with each member
@@ -438,21 +446,19 @@ getAllMemberPatronage ref =
 
 putMemberPatronage :: PersistConnection -> ServerPartR
 putMemberPatronage ref = 
-  path $ \(idIn::String) -> dir "patronage" $ path $ \(fiscalPeriodStr::String) ->
-     do liftIO $ putStrLn $ show fiscalPeriodStr
-        work <- lookRead "work"
+  path $ \(idIn::Integer) -> dir "patronage" $ path $ \(performedOverStr::String) ->
+     do work <- lookRead "work"
      	skillWeightedWork <- lookRead "skillWeightedWork"
-     	seniority <- lookRead "seniority"
-     	quality <- lookRead "quality"
-     	revenueGenerated <- lookRead "revenueGenerated"
-	performedOverStr <- lookBS "performedOver" -- use path instead
-	let Just performedOver = decode performedOverStr
+        seniority <- lookRead "seniority"
+     	-- quality <- lookRead "quality"
+     	-- revenueGenerated <- lookRead "revenueGenerated"
+	let Just performedOver = decode $ LB.pack performedOverStr
      	let p = WorkPatronage{work=work, 
 	      	       skillWeightedWork=skillWeightedWork,
-	 	       seniority=seniority, quality=quality,
-		       revenueGenerated=revenueGenerated,performedOver=performedOver}
+	 	       seniority=seniority, quality=0,
+		       revenueGenerated=0,performedOver=performedOver}
         g <- query' ref GetIt
-     	let Just m = L.find ((\i -> i == idIn) . firstName) $ members g
+     	let Just m = L.find ((\i -> i == idIn) . memberId) $ members g
      	g2 <- update' ref (PutIt g{patronage = M.insert m [p] $ patronage g})
      	ok $ toResponse ()
 
@@ -554,6 +560,7 @@ capaApp ref hState = msum [
       , dir "patronage" $ method GET >> getAllMemberPatronage ref ]
   , dir "member" $ msum [ 
          method POST >> putMember ref
+       , method GET >> getMember ref
        , method POST >> putMemberPatronage ref
        , dir "equity" $ msum [
            dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref
@@ -605,7 +612,8 @@ main = do
    either (error . concat) (serve Nothing . capaApp x) ehs 
 
 {---------------TODO------------------
--implement expanded services + form behavior, finish edits and pickers
+-implement expanded services + form behavior (enter patronage, view allocate, settings)
+-finish edits and pickers
 
 -use across different date ranges
 -add coop parameter
@@ -628,6 +636,7 @@ main = do
 -create monitoring, schedule backup
 -req, spec wiki
 -bugs, enhance tracker
+-services + forms - save allocs, account view, coop summary
 -user manual, dev manual
 -javascript reorganize, widget and binding library survey
 -remote support procedures
