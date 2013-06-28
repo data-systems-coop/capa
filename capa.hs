@@ -611,38 +611,3 @@ main = do
      initHeist hCfg
    either (error . concat) (serve Nothing . capaApp x) ehs 
 
-{---------------TODO------------------
--implement expanded services + form behavior (enter patronage, view allocate, settings)
--finish edits and pickers
-
--use across different date ranges
--add coop parameter
-
--authenticate, session <<<
--postgres, liquibase <<<
--modules
--automate test w/travis
--automate run. kill
--automate release, refresh
--select hosting
--filter deactivated members, accounts
--sets not lists
--url paths, template naming conventions
-
--config
--automate backup, restore
--export procedure
--logging (serverside logging, jslogger + log4javascript)
--create monitoring, schedule backup
--req, spec wiki
--bugs, enhance tracker
--services + forms - save allocs, account view, coop summary
--user manual, dev manual
--javascript reorganize, widget and binding library survey
--remote support procedures
--create prod env vm with bootstrap script
--handle partial path fail
--meta: cost estimate/donation/developer avail and financial health monitor
--interest calc daily job
--refine types, calcs
--}
