@@ -196,7 +196,7 @@ patronageProportions ps =
 	   divOrZero r tr))
      ps
 
-patronageAllocateRatios
+patronageAllocateRatios 
   PatronageWeights{workw=ww, skillWeightedWorkw=skw, seniorityw=snw, 
   	           qualityw=qw, revenueGeneratedw=rw} = 
      M.map 
@@ -204,7 +204,9 @@ patronageAllocateRatios
        . (\(w, sk, sn, q, r) -> sum [w * ww,sk * skw,sn * snw,q * qw,r * rw]))
      . patronageProportions
 
-
+allocateEquityFor ::
+  FinancialResults -> M.Map Member WorkPatronage -> PatronageWeights -> Day -> 
+    M.Map Member MemberEquityAction
 allocateEquityFor FinancialResults{over=ov,surplus=sr} ps pw performedOn = 
   let memberRatios = patronageAllocateRatios pw ps
   in  
@@ -483,17 +485,19 @@ putFinancialResults ref =
 postAllocateToMembers :: PersistConnection -> ServerPartR
 postAllocateToMembers ref = 
   do UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
-     surplus <- lookRead "surplus"
      overStr <- lookBS "over"
-     let Just over = decode overStr
-     let res = FinancialResults over surplus $ Just day
-     g <- query' ref GetIt
-     let Just (name, parameters, _) = settings g
-     let me = allocateEquityFor res (M.map head (patronage g)) parameters day
+     let Just allocateOver = decode overStr
+     Globals{financialResults=fr, settings=settings, patronage=patronage} <- 
+       query' ref GetIt
+     let Just res = L.find ((== allocateOver) . over) fr
+     let Just (name, parameters, _) = settings
+     -- let memPatr = M.map  *****
+     let me = allocateEquityFor res (M.map head patronage) parameters day
      ok $ toResponse $ JSONData $ M.toList me
 
 -- postAllocationDisbursal
-    -- save allocation entry, all allocs, all distribs    
+    -- updated fiscal period entry, all allocs, all distribs    
+    -- let res = FinancialResults over surplus $ Just day
         
 
 -- getActionsForMemberEquityAccount
@@ -554,7 +558,9 @@ capaApp ref hState = msum [
   , dir "financial" $ dir "results" $ msum [ 
        method GET >> getAllFinancialResultsDetail ref
      , method POST >> putFinancialResults ref ]
-  , dir "surplus" $ dir "allocate" $ dir "method" $ method POST >> putCalcMethod ref
+  , dir "surplus" $ 
+      dir "allocate" $ 
+        dir "method" $ method POST >> putCalcMethod ref
   , dir "members" $ msum [
         nullDir >> method GET >> getMembers ref  
       , dir "patronage" $ method GET >> getAllMemberPatronage ref ]
@@ -567,7 +573,10 @@ capaApp ref hState = msum [
          , dir "history" $ method POST >> putEquityAction ref ] ]
   , dir "equity" $ msum [
        dir "members" $ msum [
-         dir "allocate" $ method POST >> postAllocateToMembers ref ] ]
+         dir "allocate" $ msum [
+           method POST >> postAllocateToMembers ref 
+           --,  method POST >> postAllocationDisbursal ref
+         ] ] ]
   , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref
   , coopSummary ref]
 
@@ -579,16 +588,20 @@ main = do
    let f1 = FiscalPeriod (GregorianMonth 2012 1) Year
    let f2 = FiscalPeriod (GregorianMonth 2011 1) Year
    let (m1, m2, m3) = (Member "Jonh" 1, Member "Kanishka" 2, Member "Dave" 3)
+   let pw = PatronageWeights (5%10) (3%10) (2%10) 0 0
    let g0 = Globals 
               (Cooperative 
                   1 "Coop1" "k@m.com" "John" 
                   (fromGregorian 2010 1 1) 
                   (fromGregorian 2010 2 2) (FiscalCalendarType 1 Year))
-              Nothing
+              (Just 
+                ("Basic", 
+                 pw,
+                 [(GregorianDuration 1 0, 0%6), (GregorianDuration 1 6, 0%4)]))
               [m1, m2, m3]
-              (M.fromList [ (m1, [WorkPatronage 5 4 3 2 1 f1])
+              (M.fromList [ (m1, [WorkPatronage 5 4 3 2 1 f2])
                           , (m2, [WorkPatronage 10 20 30 40 50 f2])
-                          , (m3, []) ])
+                          , (m3, [WorkPatronage 100 200 300 400 500 f2]) ])
               M.empty
               [FinancialResults 
                   (FiscalPeriod (GregorianMonth 2012 1) Year) 

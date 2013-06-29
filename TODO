@@ -1,5 +1,5 @@
--implement expanded services + form behavior (enter patronage, view allocate, settings)
--finish edits and pickers
+-implement expanded services + form behavior (view allocate, settings)
+-day picker
 
 -use across different date ranges
 -add coop parameter
@@ -13,7 +13,7 @@
 -select hosting
 -filter deactivated members, accounts
 -sets not lists
--url paths, template naming conventions
+-rest resource paths, template naming conventions
 
 -config
 -automate backup, restore
@@ -28,6 +28,6 @@
 -remote support procedures
 -create prod env vm with bootstrap script
 -handle partial path fail
--meta: cost estimate/donation/developer avail and financial health monitor
+-meta: cost estimate/donate/developer avail and financial health monitor
 -interest calc daily job
 -refine types, calcs

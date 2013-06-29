@@ -38,6 +38,8 @@ function setupForm(){
          window.location.href = sprintf("/control/members/patronage/period?period=%s", per)
        }
     })
+  var per = uriEncode($.url().param("period"))
+  $("#cancel").attr("href",sprintf("/control/members/patronage/period?period=%s",per))
 }
 </script>
 <form id="addForm" method="POST"> 
@@ -58,8 +60,7 @@ function setupForm(){
 <input type="text" class="input-mini" name='revenueGenerated' id="revenueGenerated">
 <div class="form-actions">
 <button type="submit" class="btn btn-primary">Save</button>
-<!-- change this into a link to period patraonge -->
-<button id="cancel" type="button" class="btn">Cancel</button> 
+<a id="cancel" class="btn">Cancel</a> 
 </div>
 </form>
 

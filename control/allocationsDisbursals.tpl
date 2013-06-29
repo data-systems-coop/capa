@@ -2,76 +2,61 @@
 
 <script>
 $(document).ready(function() { 
-  updateNavigation("Allocate")
-  setupAllocateForm()
-  loadMembers()
+  var over = JSON.parse($.url().param("over"))
+  loadAllocationsDisbursals(over)
+  setupSaveForm();
 })
 </script>
 
 <div class="row">
-<div class="span2 offset3">
-<script>
-function setupAllocateForm(){
-  $('#allocateForm').ajaxForm({
-     dataType: "json",
-     success: attachAllocations
-   })
-}
-</script>
-<form id="allocateForm" method="POST" action="/equity/members/allocate">
-<label for="surplus">Surplus</label>
-<input type="text" class="input-small" name="surplus" id="surplus"/>
-<div class="form-actions">
-<button type="submit" class="btn btn-primary">Allocate</button>
-</div>
-</form>
-</div>
-</div>
-
-
-<div class="row">
-
 <div class="span10">
 <script>
-function loadMembers(){
-  $.getJSON("/members", function(data){
-     $("#result").data("members", data)
-     $.each(data, function(i,m){ loadPatronage(m) })
-  })
-}
-function loadPatronage(member){
-  $.getJSON(sprintf("/member/%s/patronage/1", member.firstName), function(pdata){
-     appendMember(member, pdata)
+function loadAllocationsDisbursals(over){
+  var allocUrl = "/equity/members/allocate"
+  $.post(allocUrl, {"over": JSON.stringify(over)}, function(data){
+      $.each(data, function(i,d){
+       appendMemberAllocation(d[0], d[1])
+       loadDisbursals(d[1])  
+     })
    })
 }
-function appendMember(member, patronage){
+function appendMemberAllocation(member, allocAction){
   $("#result").append(
-    sprintf(
- "<tr id='%s'><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td>%s</td><td></td></tr>", 
-        member.firstName, member.firstName, 
-        patronage.work, patronage.skillWeightedWork, patronage.seniority, 
-        patronage.quality, patronage.revenueGenerated))
+    sprintf("<tr><td>%s</td><td>%s</td><td>%s</td></tr>", 
+      member.firstName, allocAction.amount, allocAction.actionType))
 }
-function attachAllocations(allocations){
-  $("#result").data("allocations", allocations)
-  $.each(allocations, function(i,a){ attachAllocation(a[0],a[1]) })
+function loadDisbursals(alloc){
+  //get all disbursals
+  //create disbursal container
+  // each
+  //   appendDisbursal
 }
-function attachAllocation(member, equityAction){
-  $("#" + member.firstName + " td:nth-child(7)").remove()
-  $("#" + member.firstName).append(sprintf("<td>%s</td>",equityAction.amount))
+function setupSaveForm(){
+  //set form action
+  //ajax form
+  //   on success -> results
 }
 </script>
 
 <table class="table">
 <thead>
-  <tr><th>Name</th><th>Work</th><th>Skill-Weighted Work</th>
-  <th>Seniority</th><th>Quality</th><th>Revenue Generated</th><th>Allocated</th></tr>
+  <tr><th>Name</th><th>Allocated</th><th>Action Type</th></tr>
 </thead>
 <tbody id="result">
 </tbody>
 </table>
 </div>
+</div>
 
+<div class="row">
+<div class="span3">
+<form id="saveForm" method="POST">
+<div class="form-actions">
+<button type="submit" class="btn btn-primary">Save</button>
+<a href="/control/financial/results" id="cancel" class="btn">Cancel</a>
+</div>
+</form>
+</div>
 </div>
 
 </apply>
