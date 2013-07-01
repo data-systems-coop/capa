@@ -142,3 +142,4 @@ allocs1 =
                               $ Just (fromGregorian 2011 1 2), 
                             [])])
 
+acct1 = MemberEquityAccount 1 RollingPatronage
