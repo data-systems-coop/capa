@@ -79,8 +79,8 @@ capaApp ref hState = msum [
   , dir "equity" $ msum [
        dir "members" $ msum [
          dir "allocate" $ msum [
-           method POST >> postAllocateToMembers ref 
-           --,  method POST >> postAllocationDisbursal ref
+             dir "generate" $ method POST >> postAllocateToMembers ref 
+           , dir "save" $ method POST >> postAllocationDisbursal ref
          ] ] ]
   , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref
   , coopSummary ref]

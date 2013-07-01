@@ -163,9 +163,42 @@ postAllocateToMembers ref =
      let me = allocateEquityFor res (M.map head patronage) parameters day
      ok $ toResponse $ JSONData $ M.toList me
 
--- postAllocationDisbursal
-    -- updated fiscal period entry, all allocs, all distribs    
-    -- let res = FinancialResults over surplus $ Just day
+postAllocationDisbursal :: PersistConnection -> ServerPartR
+postAllocationDisbursal ref = 
+  do UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
+     overStr <- lookBS "allocateOver"
+     let Just allocateOver = decode overStr
+     g@Globals{financialResults=fr, settings=settings, patronage=patronage, 
+               allocations=allocs, accounts=accounts} <- 
+       query' ref GetIt
+     let (bef,res:aft) = L.break ((== allocateOver) . over) fr
+     let Just (name, parameters, disbursalSchedule) = settings
+     -- let memPatr = M.map  *****
+     let me = allocateEquityFor res (M.map head patronage) parameters day
+     liftIO $ putStrLn $ show me
+     let (accounts2, allActions) = 
+           M.foldlWithKey 
+                 (\(accounts, allActions) mem allocateAction -> 
+                   let disb = scheduleDisbursalsFor allocateAction $ disbursalSchedule
+                       memActions = allocateAction : disb
+                       (account, _) = head $ toList $ accounts ! mem -- first for now
+                       accounts2 = 
+                         M.update 
+                           (\mp -> 
+                             Just $ 
+                             M.update (\a -> Just (a ++ memActions)) account mp)
+                           mem 
+                           accounts 
+                   in (accounts2 , allActions ++ memActions))
+                 (accounts, [])
+                 me
+     let res2 = res{allocatedOn=Just day}          
+     liftIO $ putStrLn $ show (accounts2, allActions)
+     let fr2 = bef ++ (res2 : aft)
+     let allocs2 = M.insert res2 allActions (M.delete res allocs)
+     _ <- update' ref (PutIt g{financialResults = fr2, allocations = allocs2,
+                               accounts = accounts2})
+     ok $ toResponse ()
         
 
 -- getActionsForMemberEquityAccount
@@ -187,6 +220,7 @@ postScheduleAllocateDisbursal ref =
      let Just allocateAction = decode allocateActionStr
      g <- query' ref GetIt
      let Just (_, _, disbursalSchedule) = settings g
-     ok $ toResponse $ show $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
+     ok $ toResponse $ 
+       JSONData $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
                           
 
