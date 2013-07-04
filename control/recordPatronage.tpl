@@ -38,7 +38,7 @@ function setupForm(){
          window.location.href = sprintf("/control/members/patronage/period?period=%s", per)
        }
     })
-  var per = uriEncode($.url().param("period"))
+  var per = encodeURI($.url().param("period"))
   $("#cancel").attr("href",sprintf("/control/members/patronage/period?period=%s",per))
 }
 </script>
