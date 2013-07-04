@@ -41,6 +41,7 @@ $(deriveSafeCopy 0 'base ''Cooperative)
 $(deriveSafeCopy 0 'base ''EquityActionType)
 $(deriveSafeCopy 0 'base ''EquityAccountType)
 $(deriveSafeCopy 0 'base ''FiscalCalendarType)
+$(deriveSafeCopy 0 'base ''AllocationMethod)
   
 putIt :: Globals -> Update Globals Globals
 putIt g = 

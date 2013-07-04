@@ -56,8 +56,9 @@ getLatestFiscalPeriods ref = do
 -- getCalcMethod
 putCalcMethod :: PersistConnection -> ServerPartR
 putCalcMethod ref = 
-  path $ \(methodName::String) -> do 
+  path $ \(allocMethodStr::String) -> do 
       let lookRational = fmap readRational . lookString
+      let allocMethod = read allocMethodStr
       workw <- lookRational "workw"
       skillWeightedWorkw <- lookRational "skillWeightedWorkw"
       seniorityw <- lookRational "seniorityw"
@@ -69,7 +70,7 @@ putCalcMethod ref =
 		  qualityw = qualityw, 
 		  revenueGeneratedw = revenueGeneratedw}
       g <- query' ref GetIt
-      g2 <- update' ref $ PutIt g{settings = Just (methodName, pw, [])}
+      g2 <- update' ref $ PutIt g{settings = Just (allocMethod, pw, [])}
       ok $ toResponse ()
 
 

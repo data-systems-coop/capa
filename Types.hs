@@ -10,7 +10,7 @@ import Data.Time(fromGregorian)
 import qualified Data.Map as M
 -- import Data.Default 
 
-data WorkPatronage = WorkPatronage {
+data WorkPatronage = WorkPatronage { -- ptrng
   work::Integer, 
   skillWeightedWork::Integer,
   seniority::Integer,
@@ -19,7 +19,7 @@ data WorkPatronage = WorkPatronage {
   performedOver::FiscalPeriod
 } deriving (Show, Eq, Ord, Data, Typeable)
 
-data PatronageWeights = PatronageWeights {
+data PatronageWeights = PatronageWeights { -- wght
   workw::Rational,
   skillWeightedWorkw::Rational,
   seniorityw::Rational,
@@ -27,7 +27,7 @@ data PatronageWeights = PatronageWeights {
   revenueGeneratedw::Rational
 } deriving (Show, Eq, Ord, Data, Typeable)
 
-data MemberEquityAction = MemberEquityAction {
+data MemberEquityAction = MemberEquityAction { -- acn
   actionType::EquityActionType,
   amount::Money,
   performedOn::Day
@@ -36,7 +36,6 @@ data MemberEquityAction = MemberEquityAction {
 data EquityActionType = 
   BuyIn |
   AllocatePatronageRebate | 
-  DistributeImmediate | 
   DistributeInstallment |
   EarnInterest |
   DistributeOnDeparture |
@@ -45,7 +44,7 @@ data EquityActionType =
   AllocateDelayedNonQualified
    deriving (Show, Read, Eq, Ord, Data, Typeable)  
      
-data MemberEquityAccount = MemberEquityAccount {  
+data MemberEquityAccount = MemberEquityAccount {  -- acct
   ida::Integer,
   accountType::EquityAccountType
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
@@ -53,7 +52,7 @@ data MemberEquityAccount = MemberEquityAccount {
 data EquityAccountType = Committed | RollingPatronage
    deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-data Member = Member {
+data Member = Member { -- mbr
   firstName::String, 
   --lastName::String
   memberId::Integer
@@ -61,26 +60,25 @@ data Member = Member {
   --leftOn::Day
 } deriving (Show, Eq, Ord, Data, Typeable)
 
-data FinancialResults = FinancialResults { 
+data FinancialResults = FinancialResults { -- rslt
   over::FiscalPeriod,
   surplus::Money,   --net-inc
   allocatedOn::Maybe Day
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-data Cooperative = Cooperative {
+data Cooperative = Cooperative { -- cp
   cooperativeId::Integer,
   name::String,
   username::Email,
-  bookkeeperFirstName::String,
   usageStart::Day,
-  usageEnd::Day,
+  usageEnd::Maybe Day,
   fiscalCalendarType::FiscalCalendarType
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-type SeniorityMapping = [(Years,Years),SeniorityLevel]
+type SeniorityMapping = [(Years,Years),SeniorityLevel] -- change to ordered list or vector
 type SeniorityLevel = Integer
 
-data FiscalPeriod = FiscalPeriod {
+data FiscalPeriod = FiscalPeriod {  -- prd
   start::GregorianMonth,
   periodType::PeriodType
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
@@ -91,7 +89,7 @@ data GregorianMonth = GregorianMonth Year Month
 type Year = Integer
 type Month = Int
 
-data FiscalCalendarType = FiscalCalendarType{
+data FiscalCalendarType = FiscalCalendarType{ -- clTp
   startf::Month,
   periodTypef::PeriodType
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
@@ -108,22 +106,22 @@ type Years = Integer
 type Months = Integer
 
 type DisbursalSchedule = [(GregorianDuration, Rational)]
--- [(GregorianDuration 0 6, 1%4), (GregorianDuration 1 0, 3%4)]
 
-type AllocationMethod = String
+data AllocationMethod =  -- stored with allocation or alloc + coop preferences
+  ProductiveHours | Wages | SimpleMix | SeniorityMix | ElaborateMix
+  deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 -- sample data
 f1 = FiscalPeriod (GregorianMonth 2012 1) Year
 f2 = FiscalPeriod (GregorianMonth 2011 1) Year
-(m1, m2, m3) = (Member "Jonh" 1, Member "Kanishka" 2, Member "Dave" 3)
-pw1 = PatronageWeights (5%10) (3%10) (2%10) 0 0
+(m1, m2, m3) = (Member "John" 1, Member "Kanishka" 2, Member "Dave" 3)
+pw1 = PatronageWeights (5%10) (3%10) 0 0 0
 coop1 = (Cooperative 
-           1 "Coop1" "k@m.com" "John" 
-           (fromGregorian 2010 1 1) 
-           (fromGregorian 2010 2 2) (FiscalCalendarType 1 Year))
+           1 "Coop1" "k@m.com"
+           (fromGregorian 2010 1 1) Nothing (FiscalCalendarType 1 Year))
 settings1 = 
               (Just 
-                ("Basic", 
+                (SimpleMix, 
                  pw1,
                  [(GregorianDuration 1 0, 6%10), (GregorianDuration 1 6, 4%10)]))
 memPatronage1 = 

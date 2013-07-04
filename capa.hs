@@ -43,7 +43,7 @@ capaApp ref hState = msum [
          dir "coop" $ msum [
             dir "summary" $ templateResponse "coopSummary" hState
           , dir "register" $ templateResponse "registerCoop" hState
-          , dir "settings" $ templateResponse "coopSettings" hState ]
+          , dir "settings" $ templateResponse "coopSettings" hState ] -- view all, update alloc, update disbursal
        , dir "member" $ msum [
             dir "accounts" $ templateResponse "memberAccounts" hState
           , dir "account" $ dir "action" $ dir "add" $ 
