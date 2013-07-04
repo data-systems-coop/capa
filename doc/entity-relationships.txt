@@ -1,0 +1,56 @@
+# Using Erwiz 0.9.0
+{title: "CAPA"; title-size: 20}
+
+# Entities
+
+[Member Equity Action] {color:red}
+  Action Type
+  Amount
+  Performed On
+
+[Member Equity Account]
+ *Id
+  Account Type
+
+[Work Patronage] {color:green}
+  Productive Hours
+  Wages
+  Revenue Generated
+  Quality
+  Performed Over
+
+[Member]
+ *Id
+  First Name
+  Last Name
+  Accepted On
+  Left On
+
+[Financial Results] {color:blue}
+  Record Of
+  Surplus
+  Allocated On
+
+[Cooperative]
+  *Id
+  Name
+  Username
+  Usage Start
+  Usage End
+  Fiscal Calendar Type
+
+[Cooperative Configuration]
+  Allocation Method
+  Patronage Weights
+  Default Disbursal Schedule
+
+# Relationships
+(Member Equity Action) *--1 [Member Equity Account] <makes up->
+[Member Equity Action] ?--* [Member Equity Action] <disburses->
+(Member Equity Account) +--1 [Member] <-owns>
+[Member Equity Action] *--? [Financial Results] <-results in>
+(Member) +--1 [Cooperative] <part of->
+(Work Patronage) *--1 [Member]
+(Financial Results) *--? [Cooperative]
+[Cooperative] 1--1 (Cooperative Configuration) <-controls allocation>
+
