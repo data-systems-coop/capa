@@ -1,34 +1,31 @@
--implement expanded services + form behavior (view allocate, edit settings)
--day picker
+-implement expanded services + form behavior (edit settings)
 
--use across different date ranges
+-use across different date ranges (mostly done)
 -add coop parameter
 
 -authenticate, session <<<
--postgres, liquibase <<<
+-postgres, liquibase
 -automate test w/travis
--automate run. kill <<
 -automate release, refresh
--select hosting
 -filter deactivated members, accounts
 -sets not lists
 -rest resource paths, template naming conventions
 
--config <<
--automate backup, restore
+-config <<<<
+-automate backup
 -export procedure
 -logging (serverside logging, jslogger + log4javascript)
 -create monitoring, schedule backup
--req, spec wiki
--bugs, enhance tracker <<
--services + forms - save allocs, account view, coop summary
+-req, spec wiki (github)
+-services + forms - (save allocs, account view, coop summary)
 -user manual, dev manual
 -javascript reorganize, widget and binding library survey
 -remote support procedures
 -create prod env vm with bootstrap script
 -meta: cost estimate/donate/developer avail and financial health monitor
 
+-final forms + services (add action w/day picker)
 -refine types, calcs
 -handle partial path fail
--finer grainted modules
+-finer grained modules
 -interest calc daily job
