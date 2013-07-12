@@ -1,10 +1,8 @@
--implement expanded services + form behavior (edit settings)
-
 -use across different date ranges (mostly done)
 -add coop parameter
 
--authenticate, session <<<
--postgres, liquibase
+-authenticate, session (mostly done)
+-postgres, liquibase <<<<
 -automate test w/travis
 -automate release, refresh
 -filter deactivated members, accounts
