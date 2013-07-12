@@ -10,7 +10,7 @@ Coop Accounting Patronage Allocation
     | |-|-|-- breaks ?
       |-|-|-- breaks ? 
         |-|-- ? 
-	  |-- ? 
+          |-- ? 
 
 http://semver.org/
 http://www.haskell.org/haskellwiki/Package_versioning_policy
