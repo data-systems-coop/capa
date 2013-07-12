@@ -7,7 +7,10 @@ import Data.Time (Day, addGregorianMonthsClip, addGregorianYearsClip)
 import Data.Ratio ((%))
 import Data.Monoid (mconcat, Sum(..)) 
 
+--patr + seniority level
 
+patronageTotal :: 
+  [WorkPatronage] -> (Sum Integer, Sum Integer, Sum Integer, Sum Integer, Sum Integer)
 patronageTotal = 
   mconcat . 
     map   
@@ -15,9 +18,13 @@ patronageTotal =
       		     seniority=sn, quality=q, revenueGenerated=r, performedOver=_} ->
          (Sum w, Sum sk, Sum sn, Sum q, Sum r))
 
+divOrZero :: Integer -> Integer -> Rational
 divOrZero num 0 = 0
 divOrZero num denom = num % denom
 
+patronageProportions :: 
+  M.Map Member WorkPatronage -> 
+    M.Map Member (Rational, Rational, Rational, Rational, Rational)
 patronageProportions ps = 
   let (Sum tw, Sum tsk, Sum tsn, Sum tq, Sum tr) = patronageTotal $ M.elems ps
   in M.map 
@@ -28,6 +35,8 @@ patronageProportions ps =
 	   divOrZero r tr))
      ps
 
+patronageAllocateRatios :: 
+  PatronageWeights -> M.Map Member WorkPatronage -> M.Map Member Rational
 patronageAllocateRatios 
   PatronageWeights{workw=ww, skillWeightedWorkw=skw, seniorityw=snw, 
   	           qualityw=qw, revenueGeneratedw=rw} = 
@@ -49,10 +58,11 @@ allocateEquityFor FinancialResults{over=ov,surplus=sr} ps pw performedOn =
     M.map (\proportion -> round $ proportion * toRational sr) $
     memberRatios
 
+allMemberEquity :: M.Map Member [MemberEquityAction] -> M.Map Member Money
 allMemberEquity = 
   M.map (sum . map amount)
 
-memberEquityBalance :: [MemberEquityAction] -> Day -> Integer
+memberEquityBalance :: [MemberEquityAction] -> Day -> Money
 memberEquityBalance actions asOf = 0
 
 scheduleDisbursalsFor :: MemberEquityAction -> DisbursalSchedule -> [MemberEquityAction]
