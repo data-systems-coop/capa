@@ -20,14 +20,14 @@ import Data.Acid.Advanced   ( query', update' )
 import Control.Monad.IO.Class (liftIO)  -- debug
 import qualified Data.ByteString.Lazy.Char8 as LB 
 
-
 type ServerPartR = ServerPart Response
 
-coopSummary :: PersistConnection -> ServerPartR
-coopSummary ref = do 
+dump :: PersistConnection -> ServerPartR
+dump ref = do 
   v <- query' ref GetIt
   ok $ toResponse $ show v
 
+-- for provided year, provide 2 years back and forward
 getLatestFiscalPeriods :: PersistConnection -> ServerPartR
 getLatestFiscalPeriods ref = do
   Globals{cooperative=Cooperative{fiscalCalendarType=ft}} <- query' ref GetIt
@@ -54,11 +54,10 @@ getLatestFiscalPeriods ref = do
 -- getDefaultDisbursalSchedule
 
 -- getCalcMethod
-putCalcMethod :: PersistConnection -> ServerPartR
-putCalcMethod ref = 
-  path $ \(allocMethodStr::String) -> do 
+putCoopAllocateSettings :: PersistConnection -> ServerPartR
+putCoopAllocateSettings ref = do 
       let lookRational = fmap readRational . lookString
-      let allocMethod = read allocMethodStr
+      allocMethod <- lookRead "allocationMethod" 
       workw <- lookRational "workw"
       skillWeightedWorkw <- lookRational "skillWeightedWorkw"
       seniorityw <- lookRational "seniorityw"
@@ -69,8 +68,9 @@ putCalcMethod ref =
      	          seniorityw = seniorityw, 
 		  qualityw = qualityw, 
 		  revenueGeneratedw = revenueGeneratedw}
-      g <- query' ref GetIt
-      g2 <- update' ref $ PutIt g{settings = Just (allocMethod, pw, [])}
+      -- read seniority levels
+      g@Globals{settings=Just(_,_,disb)} <- query' ref GetIt
+      g2 <- update' ref $ PutIt g{settings = Just (allocMethod, pw, disb)}
       ok $ toResponse ()
 
 
@@ -115,6 +115,7 @@ getAllMemberPatronage ref =
     ok $ toResponse $ JSONData $ (M.toList mp, M.keys mu)
 
 
+-- handle fields based on alloc method
 putMemberPatronage :: PersistConnection -> ServerPartR
 putMemberPatronage ref = 
   path $ \(idIn::Integer) -> dir "patronage" $ path $ \(performedOverStr::String) ->
@@ -160,7 +161,7 @@ postAllocateToMembers ref =
        query' ref GetIt
      let Just res = L.find ((== allocateOver) . over) fr
      let Just (name, parameters, _) = settings
-     -- let memPatr = M.map  *****
+     -- let memPatr = M.map  -- retrieve for over period
      let me = allocateEquityFor res (M.map head patronage) parameters day
      ok $ toResponse $ JSONData $ M.toList me
 
@@ -174,7 +175,7 @@ postAllocationDisbursal ref =
        query' ref GetIt
      let (bef,res:aft) = L.break ((== allocateOver) . over) fr
      let Just (name, parameters, disbursalSchedule) = settings
-     -- let memPatr = M.map  *****
+     -- let memPatr = M.map  ***** -- retrieve for over period
      let me = allocateEquityFor res (M.map head patronage) parameters day
      liftIO $ putStrLn $ show me
      let (accounts2, allActions) = 
@@ -182,7 +183,8 @@ postAllocationDisbursal ref =
                  (\(accounts, allActions) mem allocateAction -> 
                    let disb = scheduleDisbursalsFor allocateAction $ disbursalSchedule
                        memActions = allocateAction : disb
-                       (account, _) = head $ toList $ accounts ! mem -- first for now
+                       -- use the rolling account 
+                       (account, _) = head $ toList $ accounts ! mem 
                        accounts2 = 
                          M.update 
                            (\mp -> 

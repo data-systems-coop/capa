@@ -10,15 +10,16 @@ $(document).ready(function() {
 <script>
 function setupForm(){
   loadSeniorityLevels([{"start":0,"end":2},{"start":3,"end":5}])
+  setupAddLevel()
   $('#updateForm').ajaxForm({
        success: function(){
-	 var per = uriEncode($.url().param("period"))
+	 var per = encodeURI($.url().param("period"))
 	 window.location.href = sprintf("/control/members/patronage/period?period=%s", per)
        }
     })
 }
 </script>
-<form id="updateForm" method="POST"> 
+<form id="updateForm" method="POST" action="/coop/settings/allocate"> 
 <div class="row">
     <div class="span5" id="add">
 	  <label class="radio inline">
@@ -36,7 +37,7 @@ function setupForm(){
 
 	  <label for="skillWeightedWorkw">Wages Weight</label>
 	  <div class="input-append">
-	    <input type="text" class="input-mini" name='skillWeightedw' id="skillWeightedw">
+	    <input type="text" class="input-mini" name='skillWeightedWorkw' id="skillWeightedWorkw">
 	    <span class="add-on">%</span>
 	  </div>
 
@@ -48,7 +49,7 @@ function setupForm(){
 
 	  <label for="workw">Revenue Generated Weight</label>
 	  <div class="input-append">
-	    <input type="text" class="input-mini" name='seniorityw' id="seniorityw">
+	    <input type="text" class="input-mini" name='revenueGeneratedw' id="revenueGeneratedw">
 	    <span class="add-on">%</span>
 	  </div>
 
@@ -64,16 +65,15 @@ function setupForm(){
 	    return sprintf("%s - %s", level.start, level.end)
 	  }
 	  function loadSeniorityLevels(levels){
-	    //save in hidden
- 	    //display in table
+	    $("#seniorityLevelRows").data("d", levels)
+	    saveToHidden()
+	    $("#seniorityLevelRows").empty()
 	    levels.forEach(function(l){
 	      $("#seniorityLevelRows").append(sprintf("<tr><td>%s</td><td>X</td></tr>", formatLevel(l)))
 	    })
           }
-	  function showAddDialog(){
-	    //create modal
-	    //add form + selects
-	    //register add and cancel handlers
+	  function saveToHidden(){
+	    $("#seniorityLevels").val(JSON.stringify($("#seniorityLevelRows").data("d")))
 	  }
 	  </script>  
 <div class="row">
@@ -89,19 +89,6 @@ function setupForm(){
  	    <tbody id="seniorityLevelRows"></tbody>
 	  </table>
 	  <button type="button" class="btn btn-small" data-toggle="modal" data-target="#addModal">Add Level</button>
-	<div id="addModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
-	<div class="modal-header">
-	<button type="button" class="close" data-dismiss="modal" aria-hidden="true">×</button>
-	<h3 id="myModalLabel">Modal header</h3>
-	</div>
-	<div class="modal-body">
-	<p>One fine body…</p>
-	</div>
-	<div class="modal-footer">
-	<button class="btn" data-dismiss="modal" aria-hidden="true">Close</button>
-	<button class="btn btn-primary">Save changes</button>
-	</div>
-    </div>
     </div>
 </div>	  
 <div class="row">
@@ -113,5 +100,45 @@ function setupForm(){
     </div>
 </div>
 </form>
+
+
+<script>
+function yearCountPicker(id){
+  var years = [0,1,2,3,4,5,6,7]
+  years.forEach(function(y){
+    $(id).append(sprintf("<option>%s</option>", y))
+  })
+}
+function setupAddLevel(){
+  yearCountPicker("#startYear")
+  yearCountPicker("#endYear")
+  $("#addButton").click(function(){
+    var startYear = $("#startYear").val()
+    var endYear = $("#endYear").val()
+    var arr = $("#seniorityLevelRows").data("d")
+    loadSeniorityLevels(arr.concat({start:startYear, end:endYear}))
+    $("#addModal").modal('hide')
+  })
+}
+</script>	
+<div id="addModal" class="modal hide fade" tabindex="-1" 
+	     role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  <div class="modal-header">
+    <button type="button" class="close" data-dismiss="modal" aria-hidden="true">x</button>
+    <h3 id="myModalLabel">Add Level</h3>
+  </div>
+  <div class="modal-body">
+      <label for="startYear">Start Year</label>
+      <select id="startYear"></select>
+      <label for="endYear">End Year</label>
+      <select id="endYear"></select>
+  </div>
+  <div class="modal-footer">
+    <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
+    <button type="button" id="addButton" class="btn btn-primary">Add</button>
+  </div>
+</div>
+
+
 
 </apply>

@@ -19,7 +19,7 @@ function appendFinancialResults(res){
       sprintf(
         '<a href="/control/equity/members/allocationsDisbursals?over=%s"' + 
 	' class="btn btn-primary">Allocate</a>', encodeURI(JSON.stringify(res.over))) :
-      formatGregorianDay(res.allocatedOn)
+      formatGregorianDay(res.allocatedOn)  //eventually link to allocation view
   var row = 
      sprintf('<tr><td>%s</td><td>$%s</td><td>%s</td>', 
          formatFiscalPeriod(res.over), 

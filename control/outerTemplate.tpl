@@ -18,6 +18,7 @@ function formatFiscalPeriod(per){
 function formatGregorianDay(day){
  return sprintf('%s/%s/%s', day[2], day[1], day[0])
 }
+// add buttons to go back, forward
 function fiscalPeriodPicker(id){
   $.getJSON("/fiscal/periods",function(periods){
     $.each(periods,function(i,period){
@@ -33,6 +34,7 @@ function addPeriod(per, id){
   $(id).append(opt)
 }
 function seniorityPicker(id){
+  //load for cooperative seniority levels
   var levels = 
     [{name:"Level 1", value: 1}, {name:"Level 2", value: 2}, 
      {name:"Level 3", value: 3}, {name:"Level 4", value: 4}]
@@ -57,10 +59,11 @@ function updateNavigation(selectItem){
   $(".navbar-inner ul li:contains('" + selectItem + "')").addClass("active")
 }
 </script>
-<div class="navbar">
+<div class="navbar">  <!-- add login / user name inline form -->
 <div class="navbar-inner">
 <a class="brand" href="#">CAPA</a>
 <ul class="nav">
+<!-- finish menue -->
 <li class="active"><a href="#">Home</a></li>
 <li><a href="/control/member/patronage/add">Patronage</a></li>
 <li><a href="/control/equity/members/allocate">Allocate</a></li>
@@ -71,6 +74,7 @@ function updateNavigation(selectItem){
 </ul>
 </div>
 </div>
+
 
 <apply-content />
 

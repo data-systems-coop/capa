@@ -6,7 +6,7 @@ $(document).ready(function() {
   var calcMethodFieldInfo = 
     [{name:"work", label:"Productive Hours"},
      {name:"skillWeightedWork", label:"Wages"},
-     {name:"seniority", label:"Seniority"},
+     {name:"seniority", label:"Seniority"}, //remove seniority
      {name:"quality", label:"Quality"},
      {name:"revenueGenerated", label:"Revenue Generated"}]
   createPatronageHeaders(calcMethodFieldInfo)
@@ -18,6 +18,7 @@ $(document).ready(function() {
       setupUnrecordedPicker(all[1])
     })
   })
+  //select period based on parameter
 })
 </script>
 

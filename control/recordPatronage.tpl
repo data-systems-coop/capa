@@ -34,7 +34,7 @@ function setupForm(){
   })
   $('#addForm').ajaxForm({
        success: function(){
-         var per = uriEncode($.url().param("period"))
+         var per = encodeURI($.url().param("period"))
          window.location.href = sprintf("/control/members/patronage/period?period=%s", per)
        }
     })
@@ -52,6 +52,7 @@ function setupForm(){
 <input type="text" class="input-mini" name='work' id="work">
 <label for="skillWeightedWork">Skill-Weighted Work</label>
 <input type="text" class="input-mini" name='skillWeightedWork' id="skillWeightedWork">
+<!-- remove seniority -->
 <label for="seniority">Seniority</label>
 <select class="input-small" name='seniority' id="seniority"></select>
 <label for="quality">Quality</label>
