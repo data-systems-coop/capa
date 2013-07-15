@@ -7,6 +7,7 @@ executable capa
   build-depends:	base, happstack-lite, blaze-html, text, 
                         containers, mtl, acid-state, safecopy, aeson, heist, either,
                         blaze-builder, bytestring, time, transformers, 
-                        vector, attoparsec, happstack-server, http-conduit
+                        vector, attoparsec, happstack-server, http-conduit, 
+                        HDBC, HDBC-postgresql
   hs-source-dirs:	.
   main-is:		capa.hs

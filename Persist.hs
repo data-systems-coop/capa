@@ -1,11 +1,9 @@
-{-# Language 
-     DeriveDataTypeable, 
-     TemplateHaskell, 
-     TypeFamilies #-}
+{-# Language DeriveDataTypeable, TemplateHaskell, TypeFamilies #-}
 module Persist 
 where
   
 import Types
+import Data.Time (fromGregorian, toGregorian)
 
 import Data.Data            ( Data, Typeable ) 
 import qualified Data.Map as M
@@ -14,8 +12,12 @@ import Control.Monad.State  ( get, put )
 import Data.Acid            ( AcidState, Query, Update, makeAcidic )
 import Data.SafeCopy        ( base, deriveSafeCopy )
 
+import qualified Database.HDBC.PostgreSQL as PG 
+import qualified Database.HDBC as DB
+
 type PersistConnection = AcidState Globals
 
+--generally prefer sets not lists
 data Globals = Globals { 
   cooperative :: Cooperative,
   settings :: Maybe (AllocationMethod, PatronageWeights, DisbursalSchedule),
@@ -61,3 +63,17 @@ g0 =
                        (m3, M.singleton acct1 [])])
           res1 allocs1
 
+rsltGetFor :: PG.Connection -> Integer -> IO [FinancialResults]
+rsltGetFor dbCn cpId = do
+  DB.quickQuery dbCn 
+    "select (rsltOver).prdStart, (rsltOver).prdType, surplus, allocatedOn from FinancialResults where cpId = cpId" []
+  >>= mapM (return . rsltFromRow)
+
+rsltFromRow :: [DB.SqlValue] -> FinancialResults  --private
+rsltFromRow (rsltOverStart:rsltOverType:surplus:allocatedOn:_) = 
+  let (yr,mo,_) = toGregorian $ DB.fromSql rsltOverStart
+      prdType = read $ DB.fromSql rsltOverType
+  in FinancialResults 
+      (FiscalPeriod (GregorianMonth yr mo) prdType)
+      (DB.fromSql surplus)
+      (DB.fromSql allocatedOn)

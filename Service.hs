@@ -20,6 +20,9 @@ import Data.Acid.Advanced   ( query', update' )
 import Control.Monad.IO.Class (liftIO)  -- debug
 import qualified Data.ByteString.Lazy.Char8 as LB 
 
+import qualified Database.HDBC.PostgreSQL as PG -- remove me
+import qualified Database.HDBC as DB
+
 type ServerPartR = ServerPart Response
 
 dump :: PersistConnection -> ServerPartR
@@ -134,10 +137,11 @@ putMemberPatronage ref =
      	g2 <- update' ref (PutIt g{patronage = M.insert m [p] $ patronage g})
      	ok $ toResponse ()
 
-getAllFinancialResultsDetail :: PersistConnection -> ServerPartR
-getAllFinancialResultsDetail ref = do 
-  g <- query' ref GetIt
-  let res = financialResults g
+getAllFinancialResultsDetail :: PersistConnection -> PG.Connection -> ServerPartR
+getAllFinancialResultsDetail ref dbCn = do 
+  -- g <- query' ref GetIt
+  -- let res = financialResults g
+  res <- liftIO $ rsltGetFor dbCn 0 
   ok $ toResponse $ JSONData res
        
 putFinancialResults :: PersistConnection -> ServerPartR

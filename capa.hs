@@ -32,6 +32,9 @@ import Control.Monad.Identity
 import Control.Exception(bracket)     -- util
 import Data.Acid(openLocalState)
 
+import qualified Database.HDBC.PostgreSQL as PG -- remove me
+import qualified Database.HDBC as DB
+
 
 --------------APP CONTROLLER------------------------
 type TemplateStore = HeistState Identity
@@ -63,8 +66,9 @@ resolveCoop ref = do
 
   
 ---------------ENTRY---------------------------------
-capaApp :: PersistConnection -> TemplateStore -> ServerPartR
-capaApp ref hState = msum [
+capaApp :: PersistConnection -> PG.Connection -> TemplateStore -> ServerPartR
+capaApp ref conn hState = msum [
+    --partial path failurs like missing parameter?
     dir "control" $ msum [
          dir "coop" $ msum [
             dir "summary" $ templateResponse "coopSummary" hState
@@ -90,7 +94,7 @@ capaApp ref hState = msum [
        , dir "login" $ dir "resolve" $ dir "coop" $ method POST >> resolveCoop ref]
   
   , dir "financial" $ dir "results" $ msum [ 
-       method GET >> getAllFinancialResultsDetail ref
+       method GET >> getAllFinancialResultsDetail ref conn
      , method POST >> putFinancialResults ref ]
   , dir "members" $ msum [
         nullDir >> method GET >> getMembers ref  
@@ -115,6 +119,9 @@ capaApp ref hState = msum [
                      
 main = do
    x <- openLocalState g0
+   conn <- 
+     PG.connectPostgreSQL 
+     "host=localhost port=5432 dbname=mydb user=kanishka password=postgres"
    ehs <- runEitherT $ do 
      templateRepo <- loadTemplates "control"
      let hCfg = (HeistConfig 
@@ -124,6 +131,7 @@ main = do
 	           [] 
 	           templateRepo)::HeistConfig Identity
      initHeist hCfg
-   either (error . concat) (serve Nothing . capaApp x) ehs 
+   either (error . concat) (serve Nothing . capaApp x conn) ehs 
+   DB.disconnect conn
 
 

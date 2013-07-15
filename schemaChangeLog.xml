@@ -1,0 +1,74 @@
+drop type if exists FiscalPeriod;
+drop table if exists MemberEquityAction;
+drop table if exists MemberEquityAccount;
+drop table if exists WorkPatronage;
+drop table if exists Member;
+drop table if exists DisbursalSchedule;
+drop table if exists CoopSettings;
+drop table if exists FinancialResults;
+drop table if exists Cooperative;
+
+create type FiscalPeriod AS (prdStart date, prdType varchar(20));
+
+create table Cooperative(
+  cpId int not null,
+  PRIMARY KEY(cpId)
+);
+
+create table CoopSettings(
+  cpId integer not null references Cooperative(cpId),
+  PRIMARY KEY(cpId)
+);
+
+create table DisbursalSchedule(
+  cpId integer not null references Cooperative(cpId),
+  afterAllocation integer not null,
+  PRIMARY KEY(cpId, afterAllocation)
+);
+
+create table FinancialResults(
+  cpId integer not null references Cooperative(cpId),
+  rsltOver FiscalPeriod not null,
+  surplus integer not null,
+  allocatedOn date,
+  PRIMARY KEY(cpId, rsltOver)  
+);
+
+create table Member(
+  cpId integer not null references Cooperative(cpId),
+  mbrId integer not null,
+  PRIMARY KEY(mbrId, cpId)
+);
+
+create table WorkPatronage(
+  cpId integer not null,
+  mbrId integer not null,
+  performedOver integer not null,
+  PRIMARY KEY(cpId,mbrId,performedOver),
+  FOREIGN KEY(cpId,mbrId) REFERENCES Member(cpId,mbrId)
+);
+
+create table MemberEquityAccount(
+  cpId integer not null,
+  mbrId integer not null,
+  acctId integer not null,
+  PRIMARY KEY(cpId,mbrId,acctId),
+  FOREIGN KEY(cpId,mbrId) references Member(cpId,mbrId)
+);
+
+create table MemberEquityAction(
+  cpId integer not null,
+  mbrId integer not null,
+  acctId integer not null
+);
+
+-- test data
+insert into Cooperative values 
+  (1)
+, (2)
+, (3);
+
+insert into FinancialResults values
+  (1, ('2012-01-01','Year'), 200, '2012-01-03')
+, (2, ('2013-01-01','Year'), 300, null);
+
