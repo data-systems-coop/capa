@@ -108,12 +108,11 @@ getMembers ref = do -- get sum of equity balances with each member
         
 
 
-getAllMemberPatronage :: PersistConnection -> ServerPartR
-getAllMemberPatronage ref = 
+getAllMemberPatronage :: PersistConnection -> PG.Connection -> ServerPartR
+getAllMemberPatronage ref dbCn =
   path $ \(fiscalPeriodStr::String) -> do
     let Just fiscalPeriod = decode $ LB.pack fiscalPeriodStr
-    Globals{patronage=mps} <- query' ref GetIt 
-    let mpAll = M.map (L.find (\p -> performedOver p == fiscalPeriod)) mps 
+    mpAll <- liftIO $ ptrngGetFor dbCn 0 fiscalPeriod 
     let (mp, mu) = M.partition MB.isJust mpAll
     ok $ toResponse $ JSONData $ (M.toList mp, M.keys mu)
 
@@ -139,8 +138,6 @@ putMemberPatronage ref =
 
 getAllFinancialResultsDetail :: PersistConnection -> PG.Connection -> ServerPartR
 getAllFinancialResultsDetail ref dbCn = do 
-  -- g <- query' ref GetIt
-  -- let res = financialResults g
   res <- liftIO $ rsltGetFor dbCn 0 
   ok $ toResponse $ JSONData res
        

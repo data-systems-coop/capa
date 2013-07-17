@@ -98,7 +98,7 @@ capaApp ref conn hState = msum [
      , method POST >> putFinancialResults ref ]
   , dir "members" $ msum [
         nullDir >> method GET >> getMembers ref  
-      , dir "patronage" $ method GET >> getAllMemberPatronage ref ]
+      , dir "patronage" $ method GET >> getAllMemberPatronage ref conn]
   , dir "member" $ msum [ 
          method POST >> putMember ref
        , method GET >> getMember ref

@@ -77,3 +77,36 @@ rsltFromRow (rsltOverStart:rsltOverType:surplus:allocatedOn:_) =
       (FiscalPeriod (GregorianMonth yr mo) prdType)
       (DB.fromSql surplus)
       (DB.fromSql allocatedOn)
+      
+-- prdFromRow       
+
+ptrngGetFor 
+  :: PG.Connection -> Integer -> FiscalPeriod -> IO (M.Map Member (Maybe WorkPatronage))
+ptrngGetFor dbCn cpId performedOver = do 
+  res <- DB.quickQuery dbCn
+    "select m.mbrId, m.firstName, p.work, p.skillWeightedWork, p.quality, p.revenueGenerated, p.performedOver from Member m left outer join WorkPatronage p using (cpId,mbrId) where cpId = cpId and performedOver = performedOver"
+    []
+  let ms = fmap mbrFromRow res
+  let ps = 
+        fmap 
+         (\row -> 
+            let prow = drop 2 row
+            in if (head prow) == DB.SqlNull
+               then Nothing
+               else Just $ ptrngFromRow performedOver prow)
+         res
+  return (M.fromList $ zip ms ps)
+  
+mbrFromRow :: [DB.SqlValue] -> Member
+mbrFromRow (mbrId:firstName:_) = 
+  Member (DB.fromSql firstName) (DB.fromSql mbrId)
+  
+ptrngFromRow :: FiscalPeriod -> [DB.SqlValue] -> WorkPatronage
+ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) = 
+  WorkPatronage 
+    (DB.fromSql work)
+    (DB.fromSql skillWeightedWork)
+    0
+    (DB.fromSql quality)
+    (DB.fromSql revenueGenerated)
+    performedOver
