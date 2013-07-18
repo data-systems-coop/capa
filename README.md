@@ -16,5 +16,9 @@ http://semver.org/
 http://www.haskell.org/haskellwiki/Package_versioning_policy
 
 
-Rebuild + Restart: 
-(bin/stop.sh; cabal install) && (rm nohup.out && bin/start.sh; sleep 0.01; tail nohup.out)
+Rebuild + Restart (I am losing stdout?): 
+(bin/stop.sh; cabal install) && (rm nohup.out; bin/db-update.sh; bin/start.sh; sleep 0.5; tail nohup.out)
+
+
+Download liquibase, extract to bin/ext/liquibase 
+Download postgresql-java driver, extract to bin/ext/liquibase/lib

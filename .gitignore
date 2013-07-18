@@ -1,3 +1,4 @@
+/bin/ext/liquibase/*
 /nohup.out
 /state/*
 dist

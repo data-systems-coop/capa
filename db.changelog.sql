@@ -1,13 +1,6 @@
-drop table if exists MemberEquityAction;
-drop table if exists MemberEquityAccount;
-drop table if exists WorkPatronage;
-drop table if exists Member;
-drop table if exists DisbursalSchedule;
-drop table if exists CoopSettings;
-drop table if exists FinancialResults;
-drop table if exists Cooperative;
-drop type if exists FiscalPeriod;
+--liquibase formatted sql
 
+--changeset kazimi:import  context:prod
 create type FiscalPeriod AS (prdStart date, prdType varchar(20));
 
 create table Cooperative(
@@ -74,7 +67,8 @@ create table MemberEquityAction(
   FOREIGN KEY(cpId,resultOf) references FinancialResults(cpId,rsltOver)
 );
 
--- test data
+
+--changeset kazimi:import2  context:test
 insert into Cooperative values 
   (1)
 , (2)
@@ -101,3 +95,4 @@ insert into MemberEquityAccount values
 , (1, 2, 2, 'RollingPatronage')
 , (1, 3, 1, 'Committed')
 , (1, 3, 2, 'RollingPatronage')
+

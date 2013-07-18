@@ -21,7 +21,6 @@ import Control.Monad.IO.Class (liftIO)  -- debug
 import qualified Data.ByteString.Lazy.Char8 as LB 
 
 import qualified Database.HDBC.PostgreSQL as PG -- remove me
-import qualified Database.HDBC as DB
 
 type ServerPartR = ServerPart Response
 
