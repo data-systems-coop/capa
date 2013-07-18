@@ -95,14 +95,14 @@ capaApp ref conn hState = msum [
   
   , dir "financial" $ dir "results" $ msum [ 
        method GET >> getAllFinancialResultsDetail ref conn
-     , method POST >> putFinancialResults ref ]
+     , method POST >> putFinancialResults ref conn]
   , dir "members" $ msum [
-        nullDir >> method GET >> getMembers ref  
+        nullDir >> method GET >> getMembers ref conn
       , dir "patronage" $ method GET >> getAllMemberPatronage ref conn]
   , dir "member" $ msum [ 
          method POST >> putMember ref
        , method GET >> getMember ref
-       , method POST >> putMemberPatronage ref
+       , method POST >> putMemberPatronage ref conn
        , dir "equity" $ msum [
            dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref
          , dir "history" $ method POST >> putEquityAction ref ] ]
@@ -110,12 +110,11 @@ capaApp ref conn hState = msum [
        dir "members" $ msum [
          dir "allocate" $ msum [
              dir "generate" $ method POST >> postAllocateToMembers ref 
-           , dir "save" $ method POST >> postAllocationDisbursal ref] ] ]
+           , dir "save" $ method POST >> postAllocationDisbursal ref conn] ] ]
   , dir "coop" $ msum [
        dir "settings" $ msum [
           dir "allocate" $ method POST >> putCoopAllocateSettings ref] ]
-  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref
-  , dir "dump" $ dump ref]
+  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref]
                      
 main = do
    x <- openLocalState g0

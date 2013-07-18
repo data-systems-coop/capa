@@ -63,6 +63,8 @@ g0 =
                        (m3, M.singleton acct1 [])])
           res1 allocs1
 
+-- prdFromRow       
+
 rsltGetFor :: PG.Connection -> Integer -> IO [FinancialResults]
 rsltGetFor dbCn cpId = do
   DB.quickQuery dbCn 
@@ -78,7 +80,17 @@ rsltFromRow (rsltOverStart:rsltOverType:surplus:allocatedOn:_) =
       (DB.fromSql surplus)
       (DB.fromSql allocatedOn)
       
--- prdFromRow       
+rsltSaveFor :: PG.Connection -> Integer -> FinancialResults -> IO ()
+rsltSaveFor dbCn cpId FinancialResults{over=over,surplus=srpls,allocatedOn=Nothing} = do 
+  let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = over
+  let prdStartDay = fromGregorian yr mo 1
+  DB.run dbCn 
+    "insert into FinancialResults values(?,(?,?),?)"
+    [DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType,
+     DB.SqlInteger srpls]
+  DB.commit dbCn  
+  
+-- rsltSaveAllocated :: PG.Connection -> Integer -> FinancialResults -> IO ()  
 
 ptrngGetFor 
   :: PG.Connection -> Integer -> FiscalPeriod -> IO (M.Map Member (Maybe WorkPatronage))
@@ -97,10 +109,28 @@ ptrngGetFor dbCn cpId performedOver = do
          res
   return (M.fromList $ zip ms ps)
   
+ptrngSaveFor :: PG.Connection -> Integer -> Integer -> WorkPatronage -> IO ()
+ptrngSaveFor dbCn cpId mbrId 
+  WorkPatronage{work=wrk,skillWeightedWork=swrk,quality=ql, 
+                revenueGenerated=rvg,performedOver=prf}= do
+  let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = prf
+  let prdStartDay = fromGregorian yr mo 1
+  DB.run dbCn 
+    "insert into WorkPatronage values(?,?,(?,?),?,?,?,?)"
+    [DB.SqlInteger cpId, DB.SqlInteger mbrId, DB.SqlLocalDate prdStartDay, 
+     DB.SqlString $ show prdType, DB.SqlInteger wrk, DB.SqlInteger swrk, 
+     DB.SqlInteger ql, DB.SqlInteger rvg]
+  DB.commit dbCn  
+  
 mbrFromRow :: [DB.SqlValue] -> Member
 mbrFromRow (mbrId:firstName:_) = 
   Member (DB.fromSql firstName) (DB.fromSql mbrId)
   
+mbrGetFor :: PG.Connection -> Integer -> IO [Member]
+mbrGetFor dbCn cpId = do
+  res <- DB.quickQuery dbCn "select mbrId,firstName from member where cpId=cpId" []
+  return $ fmap mbrFromRow res
+
 ptrngFromRow :: FiscalPeriod -> [DB.SqlValue] -> WorkPatronage
 ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) = 
   WorkPatronage 
@@ -110,3 +140,20 @@ ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) =
     (DB.fromSql quality)
     (DB.fromSql revenueGenerated)
     performedOver
+    
+acnSaveFor :: 
+  PG.Connection -> Integer -> Integer -> Integer -> FiscalPeriod -> MemberEquityAction -> IO ()
+acnSaveFor 
+  dbCn cpId mbrId acctId resultOf
+  MemberEquityAction{actionType=tp,amount=amt,performedOn=prf} = do 
+    let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = resultOf
+    let prdStartDay = fromGregorian yr mo 1
+    DB.run dbCn 
+      "insert into MemberEquityAction values(?,?,?,?,?,?,(?,?))"
+      [DB.SqlInteger cpId, DB.SqlInteger mbrId, DB.SqlInteger acctId, 
+       DB.SqlString $ show tp, DB.SqlInteger amt, DB.SqlLocalDate prf,
+       DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
+    DB.commit dbCn
+    
+--get alloc settings    
+--get disb schedule

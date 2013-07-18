@@ -1,4 +1,3 @@
-drop type if exists FiscalPeriod;
 drop table if exists MemberEquityAction;
 drop table if exists MemberEquityAccount;
 drop table if exists WorkPatronage;
@@ -7,6 +6,7 @@ drop table if exists DisbursalSchedule;
 drop table if exists CoopSettings;
 drop table if exists FinancialResults;
 drop table if exists Cooperative;
+drop type if exists FiscalPeriod;
 
 create type FiscalPeriod AS (prdStart date, prdType varchar(20));
 
@@ -57,6 +57,7 @@ create table MemberEquityAccount(
   cpId integer not null,
   mbrId integer not null,
   acctId integer not null,
+  acctType varchar(30) not null,
   PRIMARY KEY(cpId,mbrId,acctId),
   FOREIGN KEY(cpId,mbrId) references Member(cpId,mbrId)
 );
@@ -64,7 +65,13 @@ create table MemberEquityAccount(
 create table MemberEquityAction(
   cpId integer not null,
   mbrId integer not null,
-  acctId integer not null
+  acctId integer not null,
+  acnType varchar(30) not null,
+  amount integer not null,
+  performedOn date not null,
+  resultOf FiscalPeriod null,
+  PRIMARY KEY(cpId,mbrId,acctId,acnType,amount,performedOn,resultOf),
+  FOREIGN KEY(cpId,resultOf) references FinancialResults(cpId,rsltOver)
 );
 
 -- test data
@@ -86,3 +93,11 @@ insert into WorkPatronage values
   (1, 1, ('2012-01-01','Year'), 5, 4, 3, 2)
 , (1, 2, ('2012-01-01','Year'), 10, 20, 30, 40)
 , (1, 3, ('2012-01-01','Year'), 100, 200, 300, 400);
+
+insert into MemberEquityAccount values
+  (1, 1, 1, 'Committed')
+, (1, 1, 2, 'RollingPatronage')
+, (1, 2, 1, 'Committed')
+, (1, 2, 2, 'RollingPatronage')
+, (1, 3, 1, 'Committed')
+, (1, 3, 2, 'RollingPatronage')
