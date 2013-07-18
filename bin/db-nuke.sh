@@ -1,0 +1,2 @@
+dropdb mydb
+createdb mydb

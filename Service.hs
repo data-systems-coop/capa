@@ -141,7 +141,7 @@ putFinancialResults ref dbCn = do
   liftIO $ rsltSaveFor dbCn 1 res
   ok $ toResponse ()
      
-
+-- obsolete
 postAllocateToMembers :: PersistConnection -> ServerPartR
 postAllocateToMembers ref = 
   do UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
@@ -160,11 +160,12 @@ postAllocationDisbursal ref dbCn =
   do UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
      overStr <- lookBS "allocateOver"
      let Just allocateOver = decode overStr
-     g@Globals{financialResults=fr, settings=settings, patronage=patronage, 
+     g@Globals{financialResults=fr, patronage=patronage, 
                allocations=allocs, accounts=accounts} <- 
        query' ref GetIt
+     (name, parameters) <- liftIO $ allocStngGetFor dbCn 1
+     disbursalSchedule <- liftIO $ dsbSchedGetFor dbCn 1
      let (bef,res:aft) = L.break ((== allocateOver) . over) fr
-     let Just (name, parameters, disbursalSchedule) = settings
      -- let memPatr = M.map  ***** -- retrieve for over period
      let me = allocateEquityFor res (M.map head patronage) parameters day
      -- liftIO $ putStrLn $ show me
@@ -212,12 +213,11 @@ putEquityAction ref =
      	          performedOn=performedOn}
      ok $ toResponse ()
 
-postScheduleAllocateDisbursal :: PersistConnection -> ServerPartR
-postScheduleAllocateDisbursal ref = 
+postScheduleAllocateDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
+postScheduleAllocateDisbursal ref dbCn = 
   do allocateActionStr <- lookBS "allocateAction"
      let Just allocateAction = decode allocateActionStr
-     g <- query' ref GetIt
-     let Just (_, _, disbursalSchedule) = settings g
+     disbursalSchedule <- liftIO $ dsbSchedGetFor dbCn 1
      ok $ toResponse $ 
        JSONData $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
                           

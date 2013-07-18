@@ -104,7 +104,7 @@ capaApp ref conn hState = msum [
        , method GET >> getMember ref
        , method POST >> putMemberPatronage ref conn
        , dir "equity" $ msum [
-           dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref
+           dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref conn
          , dir "history" $ method POST >> putEquityAction ref ] ]
   , dir "equity" $ msum [
        dir "members" $ msum [

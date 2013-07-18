@@ -15,9 +15,9 @@ Coop Accounting Patronage Allocation
 http://semver.org/
 http://www.haskell.org/haskellwiki/Package_versioning_policy
 
-
 Rebuild + Restart (I am losing stdout?): 
-(bin/stop.sh; cabal install) && (rm nohup.out; bin/db-update.sh; bin/start.sh; sleep 0.5; tail nohup.out)
+
+    (bin/stop.sh; cabal install) && (rm nohup.out; bin/db-update.sh; bin/start.sh; sleep 0.5; tail nohup.out)
 
 
 Download liquibase, extract to bin/ext/liquibase 

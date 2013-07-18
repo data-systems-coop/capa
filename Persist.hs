@@ -92,6 +92,8 @@ rsltSaveFor dbCn cpId FinancialResults{over=over,surplus=srpls,allocatedOn=Nothi
   
 -- rsltSaveAllocated :: PG.Connection -> Integer -> FinancialResults -> IO ()  
 
+-- save alloc settings
+
 ptrngGetFor 
   :: PG.Connection -> Integer -> FiscalPeriod -> IO (M.Map Member (Maybe WorkPatronage))
 ptrngGetFor dbCn cpId performedOver = do 
@@ -155,5 +157,24 @@ acnSaveFor
        DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
     DB.commit dbCn
     
---get alloc settings    
---get disb schedule
+allocStngGetFor :: PG.Connection -> Integer -> IO (AllocationMethod, PatronageWeights) 
+allocStngGetFor dbCn cpId = do 
+  (res:_) <- DB.quickQuery dbCn "select * from CoopSettings where cpId = cpId" []
+  return 
+   (read $ DB.fromSql $ res !! 0,
+    PatronageWeights 
+     (DB.fromSql $ res !! 1)
+     (DB.fromSql $ res !! 2)
+     (DB.fromSql $ res !! 3)
+     (DB.fromSql $ res !! 4)
+     (DB.fromSql $ res !! 5))
+   
+dsbSchedGetFor :: PG.Connection -> Integer -> IO DisbursalSchedule   
+dsbSchedGetFor dbCn cpId = do
+  res <- DB.quickQuery dbCn "select (afterAllocation).years, (afterAllocation).months, proportion from DisbursalSchedule where cpId = cpId" []
+  return $ 
+    fmap 
+      (\(yr:mo:prop:_) -> 
+        (GregorianDuration (DB.fromSql yr) (DB.fromSql mo), DB.fromSql prop))
+      res
+        

@@ -1,26 +1,26 @@
--add coop parameter
+-add coop parameter - fillout qry params
 -authenticate, session (mostly done)
--postgres, liquibase <<<<
+-postgres 
 
--automate test w/travis
 -config <<<<
 -automate backup
--export procedure
 -logging (serverside, jslogger + log4javascript) <<<
 -create monitoring, schedule backup 
+-meta: cost estimate/donate/developer avail and financial health monitor
+-automate test w/travis
+
 -use across different date ranges (mostly done)
+-finish customized fields/settings
 -services + forms - (save allocs, account view, coop summary)
 -filter deactivated members, accounts
--rest resource paths, template naming conventions
--meta: cost estimate/donate/developer avail and financial health monitor
 -javascript widgets, final forms + services (add action w/day picker)
+-export procedure
+-performance/memory basic check --------- DONE
 
--document release, refresh
+-document hosted release, refresh method
 -req, spec wiki (github)
 -basic user manual, dev manual
 -document building prod env
--refine types, calcs
--finer grained modules
 
 notes...
 release/refresh - (config files??)

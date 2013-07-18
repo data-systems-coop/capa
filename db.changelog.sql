@@ -96,3 +96,32 @@ insert into MemberEquityAccount values
 , (1, 3, 1, 'Committed')
 , (1, 3, 2, 'RollingPatronage')
 
+
+--changeset kazimi:settings context:prod
+alter table CoopSettings add column allocationMethod varchar(40) not null;
+alter table CoopSettings add column work numeric(3,2) not null;
+alter table CoopSettings add column skillWeightedWork numeric(3,2) not null;
+alter table CoopSettings add column seniority numeric(3,2) not null;
+alter table CoopSettings add column quality numeric(3,2) not null;
+alter table CoopSettings add column revenueGenerated numeric(3,2) not null;
+  
+
+--changeset kazimi:settingsDisburse context:prod
+alter table DisbursalSchedule drop constraint disbursalschedule_pkey;
+alter table DisbursalSchedule drop column afterAllocation;
+
+create type GregorianDuration as (years integer, months integer);
+alter table DisbursalSchedule add column afterAllocation GregorianDuration not null;
+alter table DisbursalSchedule add constraint disbursalschedule_pkey
+      PRIMARY KEY(cpId, afterAllocation);
+alter table DisbursalSchedule add column proportion numeric(3,2) not null;
+
+
+--changeset kazimi:settings2 context:test
+insert into CoopSettings values 
+ (1, 'SimpleMix', 0.70, 0.30, 0, 0, 0);
+
+--changeset kazimi:settingsDisburse2 context:test
+insert into DisbursalSchedule values
+  (1,(1,0),0.6), (1,(1,6),0.4);
+
