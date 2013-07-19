@@ -8,6 +8,6 @@ executable capa
                         containers, mtl, acid-state, safecopy, aeson, heist, either,
                         blaze-builder, bytestring, time, transformers, 
                         vector, attoparsec, happstack-server, http-conduit, 
-                        HDBC, HDBC-postgresql
+                        HDBC, HDBC-postgresql, old-locale, ConfigFile, MissingH
   hs-source-dirs:	.
   main-is:		capa.hs

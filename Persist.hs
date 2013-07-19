@@ -21,11 +21,10 @@ type PersistConnection = AcidState Globals
 data Globals = Globals { 
   cooperative :: Cooperative,
   settings :: Maybe (AllocationMethod, PatronageWeights, DisbursalSchedule),
-  members :: [Member],
   patronage :: M.Map Member [WorkPatronage],
   accounts :: M.Map Member (M.Map MemberEquityAccount [MemberEquityAction]),
   financialResults :: [FinancialResults],
-  allocations :: M.Map FinancialResults [MemberEquityAction] 
+  sessions :: M.Map SessionID (OpenID, Integer)
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 $(deriveSafeCopy 0 'base ''Globals)
@@ -57,12 +56,12 @@ getIt =
 $(makeAcidic ''Globals ['putIt, 'getIt])
 
 g0 = 
-  Globals coop1 settings1 [m1, m2, m3] memPatronage1 
+  Globals coop1 settings1 memPatronage1 
           (M.fromList [(m1, M.singleton acct1 []), 
                        (m2, M.singleton acct1 []),
                        (m3, M.singleton acct1 [])])
-          res1 allocs1
-
+          res1
+          M.empty
 -- prdFromRow       
 
 rsltGetFor :: PG.Connection -> Integer -> IO [FinancialResults]

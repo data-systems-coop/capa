@@ -111,6 +111,9 @@ data AllocationMethod =  -- stored with allocation or alloc + coop preferences
   ProductiveHours | Wages | SimpleMix | SeniorityMix | ElaborateMix
   deriving (Show, Read, Eq, Ord, Data, Typeable)
 
+type SessionID = String
+
+
 -- sample data
 f1 = FiscalPeriod (GregorianMonth 2012 1) Year
 f2 = FiscalPeriod (GregorianMonth 2011 1) Year
@@ -134,11 +137,5 @@ res1 =
                   (FiscalPeriod (GregorianMonth 2012 1) Year) 
                   200
                   $ Just (fromGregorian 2011 1 2)] 
-allocs1 = 
-              (M.fromList [(FinancialResults  
-                              (FiscalPeriod (GregorianMonth 2012 1) Year)
-                              200
-                              $ Just (fromGregorian 2011 1 2), 
-                            [])])
 
 acct1 = MemberEquityAccount 1 RollingPatronage

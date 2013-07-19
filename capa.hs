@@ -9,7 +9,8 @@ import Persist
 import Service
 
 import Happstack.Lite
-   (ok, method, serve, dir, Method(..), nullDir, notFound, ToMessage(..), seeOther)
+   (ok, method, serve, dir, Method(..), nullDir, notFound, ToMessage(..), seeOther,
+    CookieLife(Session), mkCookie, addCookies, expireCookie, lookCookieValue)
 import Happstack.Server.Routing (dirs)
 
 import Network.HTTP.Conduit(simpleHttp)
@@ -32,9 +33,17 @@ import Control.Monad.Identity
 import Control.Exception(bracket)     -- util
 import Data.Acid(openLocalState)
 
+import Control.Monad(when)
+import qualified Data.Time as CK
+import System.Locale(defaultTimeLocale)
+import Data.Acid.Advanced   ( query', update' )
+import qualified Data.Map as M
+
 import qualified Database.HDBC.PostgreSQL as PG -- remove me
 import qualified Database.HDBC as DB
 
+import Data.Either.Utils (forceEither)
+import qualified Data.ConfigFile as CF
 
 --------------APP CONTROLLER------------------------
 type TemplateStore = HeistState Identity
@@ -61,7 +70,14 @@ resolveCoop ref = do
   let AT.Success ident = (AT.parse (A..: "identifier") pf)::AT.Result String
   Globals{cooperative=Cooperative{username=user}} <- query' ref GetIt
   let redir = if user == ident then "/control/financial/results" else "/control/enter"
-  seeOther (redir::String) (toResponse ()) -- set cookie, home
+  when (user == ident) $ do  
+      utcNow <- liftIO CK.getCurrentTime
+      let secs = CK.formatTime defaultTimeLocale "%s" utcNow
+      let sessionId = secs
+      addCookies [(Session, mkCookie "sessionId" sessionId)]
+      g@Globals{sessions=sessions} <- query' ref GetIt
+      void $ update' ref $ PutIt g{sessions = M.insert sessionId (ident,1) sessions}
+  seeOther (redir::String) (toResponse ()) 
     -- then redirect to login screen with "Not associated with coop"
 
   
@@ -117,11 +133,22 @@ capaApp ref conn hState = msum [
   , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref]
                      
 main = do
-   x <- openLocalState g0
-   conn <- 
+  val <- CF.readfile CF.emptyCP "etc/dev.txt"
+  let cp = forceEither val
+  let dbHost = (forceEither $ CF.get cp "DEFAULT" "dbhost")::String
+  let dbPort = (forceEither $ CF.get cp "DEFAULT" "dbport")::Integer
+  let dbName = (forceEither $ CF.get cp "DEFAULT" "dbname")::String
+  let dbUser = (forceEither $ CF.get cp "DEFAULT" "dbuser")::String
+  let dbPass = (forceEither $ CF.get cp "DEFAULT" "dbpass")::String
+  let authUriBase = (forceEither $ CF.get cp "DEFAULT" "authuribase")::String
+  let servicesUri = (forceEither $ CF.get cp "DEFAULT" "servicesuri")::String
+  let templateDir = (forceEither $ CF.get cp "DEFAULT" "templatedir")::String
+  putStrLn $ show (dbHost, templateDir)
+  x <- openLocalState g0
+  conn <- 
      PG.connectPostgreSQL 
      "host=localhost port=5432 dbname=mydb user=kanishka password=postgres"
-   ehs <- runEitherT $ do 
+  ehs <- runEitherT $ do 
      templateRepo <- loadTemplates "control"
      let hCfg = (HeistConfig 
 	           [] 
@@ -130,7 +157,7 @@ main = do
 	           [] 
 	           templateRepo)::HeistConfig Identity
      initHeist hCfg
-   either (error . concat) (serve Nothing . capaApp x conn) ehs 
-   DB.disconnect conn
+  either (error . concat) (serve Nothing . capaApp x conn) ehs 
+  DB.disconnect conn
 
 

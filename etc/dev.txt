@@ -1,0 +1,9 @@
+dbhost = localhost
+dbport = 5432
+dbname = mydb
+dbuser = kanishka
+dbpass = postgres
+authuribase = https://rpxnow.com/api/v2/auth_info?apiKey=f3333416cb3a1af4761a6472123dd9979b9f6532&token=
+jslogserver = unknown
+servicesuri = http://localhost:8000
+templatedir = control
