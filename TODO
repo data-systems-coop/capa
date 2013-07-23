@@ -1,19 +1,19 @@
 -postgres, query params
 
 -automate backup
--logging (serverside, jslogger + log4javascript) <<<
--create monitoring, schedule backup 
+-logging (jslogger + log4javascript) <<<
+-create monitoring, schedule backup <<<
 -meta: cost estimate/donate/financial health monitor (+ general DSI/project health)
--automate test w/travis
 
 -use across different date ranges (mostly done)
 -finish customized fields/settings
 -services + forms - (save allocs, account view, coop summary)
 -filter deactivated members, accounts
--javascript widgets, final forms + services (add action w/day picker)
+-javascript widgets, final forms + services (add action w/day picker) 
 -export procedure
 -performance/memory basic check --------- DONE
 
+-automate test w/travis
 -document hosted release, refresh method
 -req, spec wiki (github)
 -basic user manual, dev manual
@@ -39,11 +39,6 @@ release/refresh - (config files??)
   dev:
     -restore db
     -run db migrate, start
-
-config files
-   dev, prod - db, login server, logging server, domain, web services user/pass,
-             tempalte dir
-   dev stored in git
 
 monitoring
    hosted?, ping enter page

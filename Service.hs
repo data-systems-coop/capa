@@ -7,6 +7,7 @@ import Utils
 import Persist
 import Domain
 import Serialize
+import System.Log.Logger
 
 import Happstack.Lite 
   (ok, path, dir, Response(..), ServerPart(..), ToMessage(..), lookBS, lookCookieValue) 
@@ -24,7 +25,8 @@ import qualified Database.HDBC.PostgreSQL as PG -- remove me
 
 import Control.Monad(guard)
 
-type ServerPartR = ServerPart Response
+import System.Log.Logger as LG
+import Text.Printf(printf)
 
 -- for provided year, provide 2 years back and forward
 getLatestFiscalPeriods :: PersistConnection -> ServerPartR
@@ -152,7 +154,6 @@ putFinancialResults ref dbCn = do
   liftIO $ rsltSaveFor dbCn cpId res
   ok $ toResponse ()
      
--- obsolete
 postAllocateToMembers :: PersistConnection -> ServerPartR
 postAllocateToMembers ref = 
   do cpId <- getSessionCoopId ref
@@ -179,6 +180,8 @@ postAllocationDisbursal ref dbCn =
      disbursalSchedule <- liftIO $ dsbSchedGetFor dbCn cpId
      let (bef,res:aft) = L.break ((== allocateOver) . over) fr
      -- let memPatr = M.map  ***** -- retrieve for over period
+     liftIO $ LG.infoM "Service.postAllocationDisbursal" $ 
+       printf "%s. alloc for %s" cpId (show res)
      let me = allocateEquityFor res (M.map head patronage) parameters day
      -- liftIO $ putStrLn $ show me
      let (accounts2, allActions) = 
@@ -235,6 +238,8 @@ postScheduleAllocateDisbursal ref dbCn =
      ok $ toResponse $ 
        JSONData $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
                           
+--util 
+
 getSessionCoopId :: PersistConnection -> ServerPart Integer
 getSessionCoopId ref = do 
   Globals{sessions=sessions} <- query' ref GetIt

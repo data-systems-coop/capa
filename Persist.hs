@@ -3,6 +3,7 @@ module Persist
 where
   
 import Types
+import Utils
 import Data.Time (fromGregorian, toGregorian)
 
 import Data.Data            ( Data, Typeable ) 
@@ -67,7 +68,7 @@ g0 =
 rsltGetFor :: PG.Connection -> Integer -> IO [FinancialResults]
 rsltGetFor dbCn cpId = do
   DB.quickQuery dbCn 
-    "select (rsltOver).prdStart, (rsltOver).prdType, surplus, allocatedOn from FinancialResults where cpId = cpId" []
+    "select (rsltOver).prdStart, (rsltOver).prdType, surplus, allocatedOn from FinancialResults where cpId = ?" [DB.SqlInteger cpId]
   >>= mapM (return . rsltFromRow)
 
 rsltFromRow :: [DB.SqlValue] -> FinancialResults  --private

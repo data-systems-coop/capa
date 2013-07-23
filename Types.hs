@@ -111,9 +111,6 @@ data AllocationMethod =  -- stored with allocation or alloc + coop preferences
   ProductiveHours | Wages | SimpleMix | SeniorityMix | ElaborateMix
   deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-type SessionID = String
-
-
 -- sample data
 f1 = FiscalPeriod (GregorianMonth 2012 1) Year
 f2 = FiscalPeriod (GregorianMonth 2011 1) Year

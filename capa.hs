@@ -44,6 +44,12 @@ import qualified Database.HDBC as DB
 
 import Data.Either.Utils (forceEither)
 import qualified Data.ConfigFile as CF
+import Text.Printf(printf)
+
+import qualified System.Log.Logger as LG
+import qualified System.Log.Handler.Syslog as SYS
+
+
 
 --------------APP CONTROLLER------------------------
 type TemplateStore = HeistState Identity
@@ -59,31 +65,37 @@ templateResponse name hState =  -- parameter to check cookie or not
 	   rendered  	
      
 
-resolveCoop ref = do 
+resolveCoop authUriBase ref = do 
   token <- lookString "token"
-  let reqUri = "https://rpxnow.com/api/v2/auth_info" ++ 
-               "?" ++ "apiKey=" ++ "f3333416cb3a1af4761a6472123dd9979b9f6532"
-               ++ "&" ++ "token=" ++ token
+  let reqUri = authUriBase ++ token
   r <- liftIO $ simpleHttp reqUri
   let Just (A.Object r2) = A.decode r
   let AT.Success pf = (AT.parse (A..: "profile") r2)::AT.Result A.Object
   let AT.Success ident = (AT.parse (A..: "identifier") pf)::AT.Result String
   Globals{cooperative=Cooperative{username=user}} <- query' ref GetIt
   let redir = if user == ident then "/control/financial/results" else "/control/enter"
-  when (user == ident) $ do  
+  (if (user == ident) then do
+      liftIO $ LG.infoM "resolveCoop" $ printf "%s resolved for %s" user ("c1"::String)
       utcNow <- liftIO CK.getCurrentTime
       let secs = CK.formatTime defaultTimeLocale "%s" utcNow
       let sessionId = secs
       addCookies [(Session, mkCookie "sessionId" sessionId)]
       g@Globals{sessions=sessions} <- query' ref GetIt
       void $ update' ref $ PutIt g{sessions = M.insert sessionId (ident,1) sessions}
+   else 
+     liftIO $ LG.errorM "resolveCoop" $ printf "%s no coop" ident)
   seeOther (redir::String) (toResponse ()) 
     -- then redirect to login screen with "Not associated with coop"
 
   
 ---------------ENTRY---------------------------------
-capaApp :: PersistConnection -> PG.Connection -> TemplateStore -> ServerPartR
-capaApp ref conn hState = msum [
+capaApp :: 
+  PersistConnection -> 
+  PG.Connection -> 
+  (PersistConnection -> ServerPartR) ->
+  TemplateStore -> 
+  ServerPartR
+capaApp ref conn resolveCoopCtrl hState = msum [
     --partial path failurs like missing parameter?
     dir "control" $ msum [
          dir "coop" $ msum [
@@ -107,7 +119,7 @@ capaApp ref conn hState = msum [
             dir "members"  $ dir "allocationsDisbursals" $ 
               templateResponse "allocationsDisbursals" hState ] 
        , dir "enter" $ templateResponse "enter" hState 
-       , dir "login" $ dir "resolve" $ dir "coop" $ method POST >> resolveCoop ref]
+       , dir "login" $ dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl ref]
   
   , dir "financial" $ dir "results" $ msum [ 
        method GET >> getAllFinancialResultsDetail ref conn
@@ -133,6 +145,9 @@ capaApp ref conn hState = msum [
   , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref]
                      
 main = do
+  s <- SYS.openlog "capa" [] SYS.USER LG.DEBUG
+  LG.updateGlobalLogger LG.rootLoggerName (LG.addHandler s . LG.setLevel LG.INFO)
+  LG.infoM "main" "started"
   val <- CF.readfile CF.emptyCP "etc/dev.txt"
   let cp = forceEither val
   let dbHost = (forceEither $ CF.get cp "DEFAULT" "dbhost")::String
@@ -142,14 +157,15 @@ main = do
   let dbPass = (forceEither $ CF.get cp "DEFAULT" "dbpass")::String
   let authUriBase = (forceEither $ CF.get cp "DEFAULT" "authuribase")::String
   let servicesUri = (forceEither $ CF.get cp "DEFAULT" "servicesuri")::String
-  let templateDir = (forceEither $ CF.get cp "DEFAULT" "templatedir")::String
-  putStrLn $ show (dbHost, templateDir)
+  let templateDir = (forceEither $ CF.get cp "DEFAULT" "templatedir")
+  -- config should select debug or not
   x <- openLocalState g0
   conn <- 
      PG.connectPostgreSQL 
-     "host=localhost port=5432 dbname=mydb user=kanishka password=postgres"
+       (printf "host=%s port=%d dbname=%s user=%s password=%s"
+              dbHost dbPort dbName dbUser dbPass)
   ehs <- runEitherT $ do 
-     templateRepo <- loadTemplates "control"
+     templateRepo <- loadTemplates templateDir
      let hCfg = (HeistConfig 
 	           [] 
 	           (defaultInterpretedSplices ++ defaultLoadTimeSplices) 
@@ -157,7 +173,14 @@ main = do
 	           [] 
 	           templateRepo)::HeistConfig Identity
      initHeist hCfg
-  either (error . concat) (serve Nothing . capaApp x conn) ehs 
+  either 
+    (error . concat) 
+    (serve Nothing . 
+     capaApp 
+       x 
+       conn 
+       (resolveCoop authUriBase))
+    ehs 
   DB.disconnect conn
 
 
