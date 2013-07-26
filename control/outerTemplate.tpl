@@ -16,7 +16,7 @@ function formatFiscalPeriod(per){
    sprintf("FQ %s/%s", per.start.month, per.start.year)
 }
 function formatGregorianDay(day){
- return sprintf('%s/%s/%s', day[2], day[1], day[0])
+ return sprintf('%s/%s/%s', day[1], day[2], day[0])
 }
 // add buttons to go back, forward
 function fiscalPeriodPicker(id){

@@ -137,7 +137,7 @@ capaApp ref conn resolveCoopCtrl hState = msum [
   , dir "equity" $ msum [
        dir "members" $ msum [
          dir "allocate" $ msum [
-             dir "generate" $ method POST >> postAllocateToMembers ref 
+             dir "generate" $ method POST >> postAllocateToMembers ref conn 
            , dir "save" $ method POST >> postAllocationDisbursal ref conn] ] ]
   , dir "coop" $ msum [
        dir "settings" $ msum [
@@ -146,7 +146,7 @@ capaApp ref conn resolveCoopCtrl hState = msum [
                      
 main = do
   s <- SYS.openlog "capa" [] SYS.USER LG.DEBUG
-  LG.updateGlobalLogger LG.rootLoggerName (LG.addHandler s . LG.setLevel LG.INFO)
+  LG.updateGlobalLogger LG.rootLoggerName (LG.addHandler s . LG.setLevel LG.DEBUG)
   LG.infoM "main" "started"
   val <- CF.readfile CF.emptyCP "etc/dev.txt"
   let cp = forceEither val

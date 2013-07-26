@@ -7,7 +7,7 @@ import Data.Time (Day, addGregorianMonthsClip, addGregorianYearsClip)
 import Data.Ratio ((%))
 import Data.Monoid (mconcat, Sum(..)) 
 
---patr + seniority level
+--(patr,seniority level) 
 
 patronageTotal :: 
   [WorkPatronage] -> (Sum Integer, Sum Integer, Sum Integer, Sum Integer, Sum Integer)

@@ -107,32 +107,29 @@ type Months = Integer
 
 type DisbursalSchedule = [(GregorianDuration, Rational)]
 
-data AllocationMethod =  -- stored with allocation or alloc + coop preferences
+data AllocationMethod = 
   ProductiveHours | Wages | SimpleMix | SeniorityMix | ElaborateMix
   deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 -- sample data
-f1 = FiscalPeriod (GregorianMonth 2012 1) Year
-f2 = FiscalPeriod (GregorianMonth 2011 1) Year
+(f1,f2) = 
+  (FiscalPeriod (GregorianMonth 2012 1) Year,
+   FiscalPeriod (GregorianMonth 2011 1) Year)
 (m1, m2, m3) = (Member "John" 1, Member "Kanishka" 2, Member "Dave" 3)
-pw1 = PatronageWeights (5%10) (3%10) 0 0 0
+pw1 = PatronageWeights (7%10) (3%10) 0 0 0
 coop1 = (Cooperative 
            1 "Coop1" "https://www.google.com/profiles/102678013619698873278"
            (fromGregorian 2010 1 1) Nothing (FiscalCalendarType 1 Year))
-settings1 = 
-              (Just 
-                (SimpleMix, 
-                 pw1,
-                 [(GregorianDuration 1 0, 6%10), (GregorianDuration 1 6, 4%10)]))
+settings1 = (SimpleMix, 
+             pw1,
+             [(GregorianDuration 1 0, 6%10), (GregorianDuration 1 6, 4%10)])
                  -- add seniority levels
-memPatronage1 = 
-              (M.fromList [ (m1, [WorkPatronage 5 4 3 2 1 f2])
-                          , (m2, [WorkPatronage 10 20 30 40 50 f2])
-                          , (m3, [WorkPatronage 100 200 300 400 500 f2]) ])
-res1 = 
-              [FinancialResults 
-                  (FiscalPeriod (GregorianMonth 2012 1) Year) 
-                  200
-                  $ Just (fromGregorian 2011 1 2)] 
-
+memPatronage1 = (M.fromList 
+                  [ (m1, [WorkPatronage 5 4 3 2 1 f2])
+                  , (m2, [WorkPatronage 10 20 30 40 50 f2])
+                  , (m3, [WorkPatronage 100 200 300 400 500 f2]) ])
+res1 = [FinancialResults 
+          (FiscalPeriod (GregorianMonth 2012 1) Year) 
+          200
+          $ Just (fromGregorian 2011 1 2)] 
 acct1 = MemberEquityAccount 1 RollingPatronage

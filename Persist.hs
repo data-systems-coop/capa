@@ -16,23 +16,20 @@ import Data.SafeCopy        ( base, deriveSafeCopy )
 import qualified Database.HDBC.PostgreSQL as PG 
 import qualified Database.HDBC as DB
 
+import qualified Data.Maybe as MB
+
 type PersistConnection = AcidState Globals
 
---generally prefer sets not lists
 data Globals = Globals { 
   cooperative :: Cooperative,
   settings :: Maybe (AllocationMethod, PatronageWeights, DisbursalSchedule),
-  patronage :: M.Map Member [WorkPatronage],
   accounts :: M.Map Member (M.Map MemberEquityAccount [MemberEquityAction]),
-  financialResults :: [FinancialResults],
   sessions :: M.Map SessionID (OpenID, Integer)
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 $(deriveSafeCopy 0 'base ''Globals)
 $(deriveSafeCopy 0 'base ''Member)
 $(deriveSafeCopy 0 'base ''PatronageWeights)
-$(deriveSafeCopy 0 'base ''WorkPatronage)
-$(deriveSafeCopy 0 'base ''FinancialResults)
 $(deriveSafeCopy 0 'base ''FiscalPeriod)
 $(deriveSafeCopy 0 'base ''GregorianMonth)
 $(deriveSafeCopy 0 'base ''PeriodType)
@@ -46,30 +43,40 @@ $(deriveSafeCopy 0 'base ''FiscalCalendarType)
 $(deriveSafeCopy 0 'base ''AllocationMethod)
   
 putIt :: Globals -> Update Globals Globals
-putIt g = 
-  do put g
-     return g
+putIt g = put g >> return g
 
 getIt :: Query Globals Globals
-getIt = 
-  ask
+getIt = ask
 
 $(makeAcidic ''Globals ['putIt, 'getIt])
 
-g0 = 
-  Globals coop1 settings1 memPatronage1 
-          (M.fromList [(m1, M.singleton acct1 []), 
-                       (m2, M.singleton acct1 []),
-                       (m3, M.singleton acct1 [])])
-          res1
-          M.empty
+g0 = Globals 
+       coop1 
+       (Just settings1)
+       (M.fromList [(m1, M.singleton acct1 []), 
+                    (m2, M.singleton acct1 []),
+                    (m3, M.singleton acct1 [])])
+       M.empty
+--generally prefer sets not lists
+
 -- prdFromRow       
 
-rsltGetFor :: PG.Connection -> Integer -> IO [FinancialResults]
-rsltGetFor dbCn cpId = do
+rsltGetAll :: PG.Connection -> Integer -> IO [FinancialResults]
+rsltGetAll dbCn cpId = do
   DB.quickQuery dbCn 
     "select (rsltOver).prdStart, (rsltOver).prdType, surplus, allocatedOn from FinancialResults where cpId = ?" [DB.SqlInteger cpId]
   >>= mapM (return . rsltFromRow)
+
+rsltGetForOver :: 
+  PG.Connection -> Integer -> FiscalPeriod -> IO (Maybe FinancialResults)
+rsltGetForOver dbCn cpId rsltOver = do 
+  let FiscalPeriod{start=GregorianMonth yr mo, periodType=prdType} = rsltOver
+  let prdStartDay = fromGregorian yr mo 1
+  rows <- DB.quickQuery dbCn
+    "select (rsltOver).prdStart, (rsltOver).prdType, surplus, allocatedOn from FinancialResults where cpId = ? and (rsltOver).prdStart = ? and (rsltOver).prdType = ?"
+    [DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
+  let mb = MB.listToMaybe rows
+  return $ fmap rsltFromRow mb 
 
 rsltFromRow :: [DB.SqlValue] -> FinancialResults  --private
 rsltFromRow (rsltOverStart:rsltOverType:surplus:allocatedOn:_) = 
@@ -90,16 +97,16 @@ rsltSaveFor dbCn cpId FinancialResults{over=over,surplus=srpls,allocatedOn=Nothi
      DB.SqlInteger srpls]
   DB.commit dbCn  
   
--- rsltSaveAllocated :: PG.Connection -> Integer -> FinancialResults -> IO ()  
-
--- save alloc settings
+-- rsltUpdateAllocated :: PG.Connection -> Integer -> FinancialResults -> IO ()  
 
 ptrngGetFor 
   :: PG.Connection -> Integer -> FiscalPeriod -> IO (M.Map Member (Maybe WorkPatronage))
 ptrngGetFor dbCn cpId performedOver = do 
+  let FiscalPeriod{start=GregorianMonth yr mo, periodType=prdType} = performedOver
+  let prdStartDay = fromGregorian yr mo 1
   res <- DB.quickQuery dbCn
-    "select m.mbrId, m.firstName, p.work, p.skillWeightedWork, p.quality, p.revenueGenerated, p.performedOver from Member m left outer join WorkPatronage p using (cpId,mbrId) where cpId = cpId and performedOver = performedOver"
-    []
+    "select m.mbrId, m.firstName, p.work, p.skillWeightedWork, p.quality, p.revenueGenerated, p.performedOver from Member m left outer join (select * from WorkPatronage where (performedOver).prdStart = ? and (performedOver).prdType = ?) p using (cpId,mbrId) where cpId = ?"
+    [DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType, DB.SqlInteger cpId]
   let ms = fmap mbrFromRow res
   let ps = 
         fmap 
@@ -114,7 +121,7 @@ ptrngGetFor dbCn cpId performedOver = do
 ptrngSaveFor :: PG.Connection -> Integer -> Integer -> WorkPatronage -> IO ()
 ptrngSaveFor dbCn cpId mbrId 
   WorkPatronage{work=wrk,skillWeightedWork=swrk,quality=ql, 
-                revenueGenerated=rvg,performedOver=prf}= do
+                revenueGenerated=rvg,performedOver=prf} = do
   let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = prf
   let prdStartDay = fromGregorian yr mo 1
   DB.run dbCn 
@@ -128,9 +135,11 @@ mbrFromRow :: [DB.SqlValue] -> Member
 mbrFromRow (mbrId:firstName:_) = 
   Member (DB.fromSql firstName) (DB.fromSql mbrId)
   
-mbrGetFor :: PG.Connection -> Integer -> IO [Member]
-mbrGetFor dbCn cpId = do
-  res <- DB.quickQuery dbCn "select mbrId,firstName from member where cpId=cpId" []
+mbrGetAll :: PG.Connection -> Integer -> IO [Member]
+mbrGetAll dbCn cpId = do
+  res <- 
+    DB.quickQuery dbCn "select mbrId,firstName from member where cpId=?" 
+      [DB.SqlInteger cpId]
   return $ fmap mbrFromRow res
 
 ptrngFromRow :: FiscalPeriod -> [DB.SqlValue] -> WorkPatronage
@@ -157,9 +166,12 @@ acnSaveFor
        DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
     DB.commit dbCn
     
-allocStngGetFor :: PG.Connection -> Integer -> IO (AllocationMethod, PatronageWeights) 
-allocStngGetFor dbCn cpId = do 
-  (res:_) <- DB.quickQuery dbCn "select * from CoopSettings where cpId = cpId" []
+allocStngGet :: PG.Connection -> Integer -> IO (AllocationMethod, PatronageWeights) 
+allocStngGet dbCn cpId = do 
+  (res:_) <- 
+    DB.quickQuery dbCn 
+      "select allocationMethod, work, skillWeightedWork, seniority, quality, revenueGenerated from CoopSettings where cpId = ?" 
+      [DB.SqlInteger cpId]
   return 
    (read $ DB.fromSql $ res !! 0,
     PatronageWeights 
@@ -169,9 +181,9 @@ allocStngGetFor dbCn cpId = do
      (DB.fromSql $ res !! 4)
      (DB.fromSql $ res !! 5))
    
-dsbSchedGetFor :: PG.Connection -> Integer -> IO DisbursalSchedule   
-dsbSchedGetFor dbCn cpId = do
-  res <- DB.quickQuery dbCn "select (afterAllocation).years, (afterAllocation).months, proportion from DisbursalSchedule where cpId = cpId" []
+dsbSchedGet :: PG.Connection -> Integer -> IO DisbursalSchedule   
+dsbSchedGet dbCn cpId = do
+  res <- DB.quickQuery dbCn "select (afterAllocation).years, (afterAllocation).months, proportion from DisbursalSchedule where cpId = ?" [DB.SqlInteger cpId]
   return $ 
     fmap 
       (\(yr:mo:prop:_) -> 

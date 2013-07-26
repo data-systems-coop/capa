@@ -1,17 +1,18 @@
--postgres, query params
+-automate backup(casey)
+-logging (jslogger) <<<
+-create monitoring(casey), schedule backup(casey)
+-meta: cost estimate/donate/financial health monitor (+ general DSI/project health), 
+  capa email/id
 
--automate backup
--logging (jslogger + log4javascript) <<<
--create monitoring, schedule backup <<<
--meta: cost estimate/donate/financial health monitor (+ general DSI/project health)
-
--use across different date ranges (mostly done)
 -finish customized fields/settings
--services + forms - (save allocs, account view, coop summary)
--filter deactivated members, accounts
+-services + forms - (account view, coop summary)
 -javascript widgets, final forms + services (add action w/day picker) 
+
 -export procedure
--performance/memory basic check --------- DONE
+-period picker shift over time
+-login check
+-form validation failures/errors
+-conn pool(casey) + performance/memory basic check --------- DONE
 
 -automate test w/travis
 -document hosted release, refresh method
@@ -20,6 +21,12 @@
 -document building prod env
 
 notes...
+
+export
+  invoke COPY command with tmp directory
+  zip directory, provide link zip, cron job periodic empty directory
+  capaPatronage.csv, capaActions.csv, capaResults.csv, capaSettings.csv
+
 release/refresh - (config files??)
   dev: 
     -checkout, clean build
@@ -41,7 +48,7 @@ release/refresh - (config files??)
     -run db migrate, start
 
 monitoring
-   hosted?, ping enter page
+   hosted?(scout), ping enter page
 
 prod env setup
    -base compiler
@@ -75,3 +82,9 @@ remote support
    -bug description, post to github. screenshots, times, data helpful
    -contact user, setup screenshare
    -get screenshots, details on when happened, what data
+
+
+FUTURE
+-filter deactivated members, accounts
+-add account
+

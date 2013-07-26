@@ -28,6 +28,7 @@ import Control.Monad(guard)
 import System.Log.Logger as LG
 import Text.Printf(printf)
 
+-- MEDIUM
 -- for provided year, provide 2 years back and forward
 getLatestFiscalPeriods :: PersistConnection -> ServerPartR
 getLatestFiscalPeriods ref = do
@@ -48,12 +49,14 @@ getLatestFiscalPeriods ref = do
           (take 10 $ enumStarts end)
   ok $ toResponse $ JSONData periods
 
--- putCooperative :: PersistentConnection -> ServerPartR
+-- EASY 
 -- getCooperative :: PersistentConnection -> ServerPartR
+-- putCooperative :: PersistentConnection -> ServerPartR
 
--- putDefaultDisbursalSchedule
 -- getDefaultDisbursalSchedule
+-- putDefaultDisbursalSchedule
 
+-- HARDER
 -- getCalcMethod
 putCoopAllocateSettings :: PersistConnection -> ServerPartR
 putCoopAllocateSettings ref = do 
@@ -75,51 +78,6 @@ putCoopAllocateSettings ref = do
       g2 <- update' ref $ PutIt g{settings = Just (allocMethod, pw, disb)}
       ok $ toResponse ()
 
-
-
-putMember :: PersistConnection -> ServerPartR
-putMember ref = do -- get all parameters for member
-  cpId <- getSessionCoopId ref
-  firstName <- lookString "firstName"
-  let member = Member firstName 1
-  -- g <- query' ref GetIt
-  -- let mems = members g
-  -- g2 <- update' ref (PutIt g{members = mems ++ [member]}) -- ignore
-  ok $ toResponse ()
-     
-getMember :: PersistConnection -> ServerPartR
-getMember ref = do 
-  path $ \(mid::Integer) -> do
-    cpId <- getSessionCoopId ref
-    -- Globals{members=mems} <- query' ref GetIt  -- ignore
-    let mems = []
-    let possibleMem = L.find ((== mid) . memberId) mems
-    ok $ toResponse $ JSONData possibleMem
-
--- detail
-getMembers :: PersistConnection -> PG.Connection -> ServerPartR
-getMembers ref dbCn = do -- get sum of equity balances with each member
-  cpId <- getSessionCoopId ref
-  ms <- liftIO $ mbrGetFor dbCn cpId
-  ok $ toResponse $ JSONData ms
-
--- putMemberRquityAccount
-
-
--- getMemberEquityAccounts
-        
-
-
-getAllMemberPatronage :: PersistConnection -> PG.Connection -> ServerPartR
-getAllMemberPatronage ref dbCn =
-  path $ \(fiscalPeriodStr::String) -> do
-    cpId <- getSessionCoopId ref
-    let Just fiscalPeriod = decode $ LB.pack fiscalPeriodStr
-    mpAll <- liftIO $ ptrngGetFor dbCn cpId fiscalPeriod 
-    let (mp, mu) = M.partition MB.isJust mpAll
-    ok $ toResponse $ JSONData $ (M.toList mp, M.keys mu)
-
-
 -- handle fields based on alloc method
 putMemberPatronage :: PersistConnection -> PG.Connection -> ServerPartR
 putMemberPatronage ref dbCn = 
@@ -138,10 +96,47 @@ putMemberPatronage ref dbCn =
         liftIO $ ptrngSaveFor dbCn cpId idIn p
      	ok $ toResponse ()
 
+getAllMemberPatronage :: PersistConnection -> PG.Connection -> ServerPartR
+getAllMemberPatronage ref dbCn =
+  path $ \(fiscalPeriodStr::String) -> do
+    cpId <- getSessionCoopId ref
+    let Just fiscalPeriod = decode $ LB.pack fiscalPeriodStr
+    mpAll <- liftIO $ ptrngGetFor dbCn cpId fiscalPeriod 
+    let (mp, mu) = M.partition MB.isJust mpAll
+    ok $ toResponse $ JSONData $ (M.toList mp, M.keys mu)
+
+-- EASY
+putMember :: PersistConnection -> ServerPartR
+putMember ref = do -- get all parameters for member
+  cpId <- getSessionCoopId ref
+  firstName <- lookString "firstName"
+  let member = Member firstName 1
+  -- g <- query' ref GetIt
+  -- let mems = members g
+  -- g2 <- update' ref (PutIt g{members = mems ++ [member]}) -- ignore
+  ok $ toResponse ()
+     
+-- EASY
+getMember :: PersistConnection -> ServerPartR
+getMember ref = do 
+  path $ \(mid::Integer) -> do
+    cpId <- getSessionCoopId ref
+    -- Globals{members=mems} <- query' ref GetIt  -- ignore
+    let mems = []
+    let possibleMem = L.find ((== mid) . memberId) mems
+    ok $ toResponse $ JSONData possibleMem
+
+-- EASY - detail
+getMembers :: PersistConnection -> PG.Connection -> ServerPartR
+getMembers ref dbCn = do -- get sum of equity balances with each member
+  cpId <- getSessionCoopId ref
+  ms <- liftIO $ mbrGetAll dbCn cpId
+  ok $ toResponse $ JSONData ms
+
 getAllFinancialResultsDetail :: PersistConnection -> PG.Connection -> ServerPartR
 getAllFinancialResultsDetail ref dbCn = do 
   cpId <- getSessionCoopId ref
-  res <- liftIO $ rsltGetFor dbCn cpId
+  res <- liftIO $ rsltGetAll dbCn cpId
   ok $ toResponse $ JSONData res
        
 putFinancialResults :: PersistConnection -> PG.Connection -> ServerPartR
@@ -153,37 +148,51 @@ putFinancialResults ref dbCn = do
   let res = FinancialResults over surplus Nothing
   liftIO $ rsltSaveFor dbCn cpId res
   ok $ toResponse ()
-     
-postAllocateToMembers :: PersistConnection -> ServerPartR
-postAllocateToMembers ref = 
+
+postAllocateToMembers :: PersistConnection -> PG.Connection -> ServerPartR
+postAllocateToMembers ref dbCn = 
+  handleAllocateToMembers ref dbCn
+  >>= ok . toResponse . JSONData . M.toList . snd
+
+postScheduleAllocateDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
+postScheduleAllocateDisbursal ref dbCn = 
+  do cpId <- getSessionCoopId ref
+     allocateActionStr <- lookBS "allocateAction"
+     let Just allocateAction = decode allocateActionStr
+     disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId
+     ok $ toResponse $ 
+       JSONData $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
+                          
+handleAllocateToMembers 
+  :: PersistConnection -> PG.Connection -> 
+     ServerPart (FiscalPeriod, (M.Map Member MemberEquityAction))
+handleAllocateToMembers ref dbCn =  
   do cpId <- getSessionCoopId ref
      UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
      overStr <- lookBS "over"
      let Just allocateOver = decode overStr
-     Globals{financialResults=fr, settings=settings, patronage=patronage} <- 
-       query' ref GetIt
-     let Just res = L.find ((== allocateOver) . over) fr
-     let Just (name, parameters, _) = settings
-     -- let memPatr = M.map  -- retrieve for over period
-     let me = allocateEquityFor res (M.map head patronage) parameters day
-     ok $ toResponse $ JSONData $ M.toList me
+     Just res <- liftIO $ rsltGetForOver dbCn cpId allocateOver
+     patronage <- liftIO $ ptrngGetFor dbCn cpId allocateOver     
+     (name, parameters) <- liftIO $ allocStngGet dbCn cpId
+     return $ 
+       (allocateOver, 
+        allocateEquityFor res (M.map MB.fromJust patronage) parameters day)
 
+-- MEDIUM 
 postAllocationDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
 postAllocationDisbursal ref dbCn = 
   do cpId <- getSessionCoopId ref
-     UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
-     overStr <- lookBS "allocateOver"
-     let Just allocateOver = decode overStr
-     g@Globals{financialResults=fr, patronage=patronage, accounts=accounts} <- 
-       query' ref GetIt
-     (name, parameters) <- liftIO $ allocStngGetFor dbCn cpId
-     disbursalSchedule <- liftIO $ dsbSchedGetFor dbCn cpId
-     let (bef,res:aft) = L.break ((== allocateOver) . over) fr
-     -- let memPatr = M.map  ***** -- retrieve for over period
+     (allocateOver, me) <- handleAllocateToMembers ref dbCn
      liftIO $ LG.infoM "Service.postAllocationDisbursal" $ 
-       printf "%s. alloc for %s" cpId (show res)
-     let me = allocateEquityFor res (M.map head patronage) parameters day
-     -- liftIO $ putStrLn $ show me
+       printf "%s. alloc for %s" cpId (show allocateOver)
+     -- for each member/alloc
+     --   for each disbursed
+     --     acnSaveToRolling db cp mbr allocover acn
+     -- update financialRes such that allocOn = Just Day
+
+     g@Globals{accounts=accounts} <- 
+       query' ref GetIt
+     disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId
      let (accounts2, allActions) = 
            M.foldlWithKey 
                  (\(accounts, allActions) mem allocateAction -> 
@@ -206,18 +215,16 @@ postAllocationDisbursal ref dbCn =
          let (MemberEquityAccount{ida=acctId},acns) = head $ toList $ accts
          in mapM_ (\acn -> acnSaveFor dbCn cpId mbrId acctId allocateOver acn) acns)
        (toList accounts2)
-     let res2 = res{allocatedOn=Just day}          
-     -- liftIO $ putStrLn $ show (accounts2, allActions)
-     let fr2 = bef ++ (res2 : aft)
-     -- let allocs2 = M.insert res2 allActions (M.delete res allocs)
-     -- _ <- update' ref (PutIt g{financialResults = fr2, allocations = allocs2,
-     --                        accounts = accounts2})
+     UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
      ok $ toResponse ()
         
 
+-- EASY --
 -- getActionsForMemberEquityAccount
     -- pair each result with running balance, and any associated allocation entry
-        
+-- getMemberEquityAccounts        
+
+-- EASY 
 putEquityAction :: PersistConnection -> ServerPartR
 putEquityAction ref = do
   cpId <- getSessionCoopId ref  
@@ -227,17 +234,10 @@ putEquityAction ref = do
   let Just performedOn = decode performedOnStr
   let act = MemberEquityAction{actionType=actionType,amount=amount,
   	       performedOn=performedOn}
+  -- db save here
   ok $ toResponse ()
 
-postScheduleAllocateDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
-postScheduleAllocateDisbursal ref dbCn = 
-  do cpId <- getSessionCoopId ref
-     allocateActionStr <- lookBS "allocateAction"
-     let Just allocateAction = decode allocateActionStr
-     disbursalSchedule <- liftIO $ dsbSchedGetFor dbCn cpId
-     ok $ toResponse $ 
-       JSONData $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
-                          
+
 --util 
 
 getSessionCoopId :: PersistConnection -> ServerPart Integer
