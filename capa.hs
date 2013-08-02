@@ -129,7 +129,7 @@ capaApp ref conn resolveCoopCtrl hState = msum [
       , dir "patronage" $ method GET >> getAllMemberPatronage ref conn]
   , dir "member" $ msum [ 
          method POST >> putMember ref
-       , method GET >> getMember ref
+       , method GET >> getMember ref conn
        , method POST >> putMemberPatronage ref conn
        , dir "equity" $ msum [
            dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref conn
@@ -141,7 +141,7 @@ capaApp ref conn resolveCoopCtrl hState = msum [
            , dir "save" $ method POST >> postAllocationDisbursal ref conn] ] ]
   , dir "coop" $ msum [
        dir "settings" $ msum [
-          dir "allocate" $ method POST >> putCoopAllocateSettings ref] ]
+          dir "allocate" $ method POST >> putCoopAllocateSettings ref conn] ]
   , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref]
                      
 main = do

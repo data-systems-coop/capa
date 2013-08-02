@@ -1,16 +1,14 @@
 -automate backup(casey)
--logging (jslogger) <<<
 -create monitoring(casey), schedule backup(casey)
--meta: cost estimate/donate/financial health monitor (+ general DSI/project health), 
-  capa email/id
+-meta: cost estimate/donate/financial health monitor (+ general DSI/project health)
 
--finish customized fields/settings
+-finish customized fields/settings (almost)
 -services + forms - (account view, coop summary)
 -javascript widgets, final forms + services (add action w/day picker) 
 
--export procedure
+-export procedure <<<<
 -period picker shift over time
--login check
+-login check 
 -form validation failures/errors
 -conn pool(casey) + performance/memory basic check --------- DONE
 

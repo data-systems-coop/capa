@@ -86,3 +86,7 @@ instance FromJSON Day where
        <$> withNumber "inccorect num" (\(AN.I i) -> pure i) (a V.! 0)
        <*> withNumber "inccorect num" (\(AN.I i) -> pure $ fromIntegral i) (a V.! 1)
        <*> withNumber "inccorect num" (\(AN.I i) -> pure $ fromIntegral i) (a V.! 2)
+
+instance FromJSON SeniorityMappingEntry where
+  parseJSON (Object v) = 
+    SeniorityMappingEntry <$> v .: "start"

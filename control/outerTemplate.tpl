@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
+<script type="text/javascript">
+document.write('<script type="text/javascript" src="' + ('https:'==document.location.protocol?'https://':'http://c.') + 'jslogger.com/jslogger.js"><\/script>');
+</script>
+<script type="text/javascript">
+window.jslogger = new JSLogger({apiKey: "51fb259e1c07bf2772000018", track:false});
+</script>
 <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.min.css" rel="stylesheet" media="screen"/>
 <script src="//code.jquery.com/jquery.js"></script>
 <script src="//malsup.github.io/jquery.form.js"> </script> 
@@ -9,6 +15,7 @@
 <script src="https://raw.github.com/eternicode/bootstrap-datepicker/master/js/bootstrap-datepicker.js"></script> 
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-url-parser/2.3.1/purl.min.js"></script>
 <script>
+
 //library
 function formatFiscalPeriod(per){
  return ( per.periodType == "Year" ) ? 

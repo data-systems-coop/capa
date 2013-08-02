@@ -42,7 +42,7 @@ function loadDisbursals(member, alloc, containerId){
   })
 }
 function setupSaveForm(over){
-  $('#allocateOver').val(JSON.stringify(over))
+  $('#over').val(JSON.stringify(over))
   $('#saveForm').ajaxForm({
       success: function(){
         window.location.href = sprintf("/control/financial/results")
@@ -63,7 +63,7 @@ function setupSaveForm(over){
 <div class="row">
 <div class="span3">
 <form id="saveForm" method="POST" action="/equity/members/allocate/save">
-<input type="hidden" name="allocateOver" id="allocateOver">
+<input type="hidden" name="over" id="over">
 <div class="form-actions">
 <button type="submit" class="btn btn-primary">Save</button>
 <a href="/control/financial/results" id="cancel" class="btn">Cancel</a>

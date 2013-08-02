@@ -56,44 +56,105 @@ getLatestFiscalPeriods ref = do
 -- getDefaultDisbursalSchedule
 -- putDefaultDisbursalSchedule
 
+
+putCoopAllocateSettings :: PersistConnection -> PG.Connection -> ServerPartR
+putCoopAllocateSettings ref dbCn = do 
+      cpId <- getSessionCoopId ref
+      allocMethod <- lookRead "allocationMethod" 
+      pw <- lookPatronageWeights allocMethod
+      sm <- lookSeniorityMappings allocMethod
+      liftIO $ saveCoopAllocateSettings dbCn cpId allocMethod pw sm
+      ok $ toResponse ()
 -- HARDER
 -- getCalcMethod
-putCoopAllocateSettings :: PersistConnection -> ServerPartR
-putCoopAllocateSettings ref = do 
-      cpId <- getSessionCoopId ref
-      let lookRational = fmap readRational . lookString
-      allocMethod <- lookRead "allocationMethod" 
-      workw <- lookRational "workw"
-      skillWeightedWorkw <- lookRational "skillWeightedWorkw"
-      seniorityw <- lookRational "seniorityw"
-      qualityw <- lookRational "qualityw"
-      revenueGeneratedw <- lookRational "revenueGeneratedw"
-      let pw = PatronageWeights{workw=workw, 
-     	      	  skillWeightedWorkw=skillWeightedWorkw, 
-     	          seniorityw = seniorityw, 
-		  qualityw = qualityw, 
-		  revenueGeneratedw = revenueGeneratedw}
-      -- read seniority levels
-      g@Globals{settings=Just(_,_,disb)} <- query' ref GetIt
-      g2 <- update' ref $ PutIt g{settings = Just (allocMethod, pw, disb)}
-      ok $ toResponse ()
 
--- handle fields based on alloc method
+saveCoopAllocateSettings :: 
+  PG.Connection -> Integer -> AllocationMethod -> PatronageWeights -> 
+    Maybe SeniorityMappings
+    -> IO ()
+saveCoopAllocateSettings dbCn cpId method patronageWeights seniorityMappings 
+  | (method == ProductiveHours || method == Wages || method == SimpleMix) = 
+    allocStngSaveFor dbCn cpId method patronageWeights
+  | otherwise = do  
+    allocStngSaveFor dbCn cpId method patronageWeights
+    snrtyMpngsSaveFor dbCn cpId $ MB.fromJust seniorityMappings
+    
+
+lookSeniorityMappings :: 
+  AllocationMethod -> ServerPart (Maybe SeniorityMappings)
+lookSeniorityMappings method 
+  | (method == ProductiveHours || method == Wages || method == SimpleMix) = 
+      return Nothing
+  | otherwise = do 
+      snrtyLvlsStr <- lookBS "seniorityLevels"
+      let Just snrtyLvls = (decode snrtyLvlsStr)::Maybe [SeniorityMappingEntry]
+      return $ Just $ M.fromList $ zip snrtyLvls [1 .. toInteger (length snrtyLvls)]
+
+lookPatronageWeights :: AllocationMethod -> ServerPart PatronageWeights
+lookPatronageWeights method = do
+  let lookRational = fmap readRational . lookString
+  case method of 
+    ProductiveHours -> do
+      workw <- lookRational "workw"
+      return 
+        PatronageWeights{workw=workw,skillWeightedWorkw=0, 
+     	        seniorityw = 0, qualityw = 0, 
+		revenueGeneratedw = 0}
+    Wages -> do
+      skillWeightedWorkw <- lookRead "skillWeightedWorkw"
+      return 
+        PatronageWeights{workw=0,skillWeightedWorkw=skillWeightedWorkw, 
+     	        seniorityw = 0, qualityw = 0, 
+		revenueGeneratedw = 0}
+    _ -> do
+      workw <- lookRational "workw"
+      skillWeightedWorkw <- lookRead "skillWeightedWorkw"
+      case method of 
+        SimpleMix -> 
+          return 
+            PatronageWeights{workw=workw,skillWeightedWorkw=skillWeightedWorkw, 
+                             seniorityw = 0, qualityw = 0, 
+                             revenueGeneratedw = 0}
+        _ -> do
+          seniorityw <- lookRational "seniorityw"
+          return 
+            PatronageWeights{workw=workw,skillWeightedWorkw=skillWeightedWorkw, 
+                             seniorityw = seniorityw, qualityw = 0, 
+                             revenueGeneratedw = 0}
+
+lookPatronage :: AllocationMethod -> FiscalPeriod -> ServerPart WorkPatronage
+lookPatronage method performedOver = 
+  case method of 
+    ProductiveHours -> do
+      work <- lookRead "work"
+      return WorkPatronage{work=work,skillWeightedWork=0,seniority=0,quality=0,
+                           revenueGenerated=0,performedOver=performedOver}
+    Wages -> do
+      skillWeightedWork <- lookRead "skillWeightedWork"
+      return WorkPatronage{work=0,skillWeightedWork=skillWeightedWork,seniority=0,
+                           quality=0,revenueGenerated=0,performedOver=performedOver}
+    _ -> do
+      work <- lookRead "work"
+      skillWeightedWork <- lookRead "skillWeightedWork"
+      case method of 
+        SimpleMix -> 
+          return WorkPatronage{work=work,skillWeightedWork=skillWeightedWork,
+                               seniority=0,quality=0,revenueGenerated=0,
+                               performedOver=performedOver}
+        _ -> do
+          seniority <- lookRead "seniority"
+          return WorkPatronage{work=work,skillWeightedWork=skillWeightedWork,
+                               seniority=seniority,quality=0,revenueGenerated=0,
+                               performedOver=performedOver}
+
 putMemberPatronage :: PersistConnection -> PG.Connection -> ServerPartR
 putMemberPatronage ref dbCn = 
   path $ \(idIn::Integer) -> dir "patronage" $ path $ \(performedOverStr::String) -> do
         cpId <- getSessionCoopId ref
-        work <- lookRead "work"
-     	skillWeightedWork <- lookRead "skillWeightedWork"
-        seniority <- lookRead "seniority"
-     	-- quality <- lookRead "quality"
-     	-- revenueGenerated <- lookRead "revenueGenerated"
-	let Just performedOver = decode $ LB.pack performedOverStr
-     	let p = WorkPatronage{work=work, 
-	      	       skillWeightedWork=skillWeightedWork,
-	 	       seniority=seniority, quality=0,
-		       revenueGenerated=0,performedOver=performedOver}
-        liftIO $ ptrngSaveFor dbCn cpId idIn p
+	let Just performedOver = decode $ LB.pack performedOverStr        
+        (allocMethod, _) <- liftIO $ allocStngGet dbCn cpId
+        lookPatronage allocMethod performedOver >>= 
+          (liftIO . ptrngSaveFor dbCn cpId idIn)
      	ok $ toResponse ()
 
 getAllMemberPatronage :: PersistConnection -> PG.Connection -> ServerPartR
@@ -116,15 +177,11 @@ putMember ref = do -- get all parameters for member
   -- g2 <- update' ref (PutIt g{members = mems ++ [member]}) -- ignore
   ok $ toResponse ()
      
--- EASY
-getMember :: PersistConnection -> ServerPartR
-getMember ref = do 
+getMember :: PersistConnection -> PG.Connection -> ServerPartR
+getMember ref dbCn = do 
   path $ \(mid::Integer) -> do
     cpId <- getSessionCoopId ref
-    -- Globals{members=mems} <- query' ref GetIt  -- ignore
-    let mems = []
-    let possibleMem = L.find ((== mid) . memberId) mems
-    ok $ toResponse $ JSONData possibleMem
+    (liftIO $ mbrGet dbCn cpId mid) >>= (ok . toResponse . JSONData)
 
 -- EASY - detail
 getMembers :: PersistConnection -> PG.Connection -> ServerPartR
@@ -178,44 +235,23 @@ handleAllocateToMembers ref dbCn =
        (allocateOver, 
         allocateEquityFor res (M.map MB.fromJust patronage) parameters day)
 
--- MEDIUM 
 postAllocationDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
 postAllocationDisbursal ref dbCn = 
   do cpId <- getSessionCoopId ref
      (allocateOver, me) <- handleAllocateToMembers ref dbCn
      liftIO $ LG.infoM "Service.postAllocationDisbursal" $ 
-       printf "%s. alloc for %s" cpId (show allocateOver)
-     -- for each member/alloc
-     --   for each disbursed
-     --     acnSaveToRolling db cp mbr allocover acn
-     -- update financialRes such that allocOn = Just Day
-
-     g@Globals{accounts=accounts} <- 
-       query' ref GetIt
-     disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId
-     let (accounts2, allActions) = 
-           M.foldlWithKey 
-                 (\(accounts, allActions) mem allocateAction -> 
-                   let disb = scheduleDisbursalsFor allocateAction $ disbursalSchedule
-                       memActions = allocateAction : disb
-                       -- use the rolling account 
-                       (account, _) = head $ toList $ accounts ! mem 
-                       accounts2 = 
-                         M.update 
-                           (\mp -> 
-                             Just $ 
-                             M.update (\a -> Just (a ++ memActions)) account mp)
-                           mem 
-                           accounts 
-                   in (accounts2 , allActions ++ memActions))
-                 (accounts, [])
-                 me
+       printf "%d. alloc for %s" cpId (show allocateOver)
+     
+     disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId     
      liftIO $ mapM_
-       (\(Member{memberId=mbrId}, accts) -> 
-         let (MemberEquityAccount{ida=acctId},acns) = head $ toList $ accts
-         in mapM_ (\acn -> acnSaveFor dbCn cpId mbrId acctId allocateOver acn) acns)
-       (toList accounts2)
+       (\(Member{memberId=mbrId}, allocAcn) -> do
+         acnSaveToRolling dbCn cpId mbrId allocateOver allocAcn
+         mapM_ 
+           (acnSaveToRolling dbCn cpId mbrId allocateOver)
+           (scheduleDisbursalsFor allocAcn disbursalSchedule))
+       (M.toList me)
      UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
+     liftIO $ rsltUpdateAllocated dbCn cpId allocateOver day
      ok $ toResponse ()
         
 
@@ -228,6 +264,7 @@ postAllocationDisbursal ref dbCn =
 putEquityAction :: PersistConnection -> ServerPartR
 putEquityAction ref = do
   cpId <- getSessionCoopId ref  
+  --member? --acctId?
   actionType <- lookRead "actionType"
   amount <- lookRead "amount"
   performedOnStr <- lookBS "performedOn"

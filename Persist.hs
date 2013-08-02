@@ -4,7 +4,7 @@ where
   
 import Types
 import Utils
-import Data.Time (fromGregorian, toGregorian)
+import Data.Time (fromGregorian, toGregorian, Day(..))
 
 import Data.Data            ( Data, Typeable ) 
 import qualified Data.Map as M
@@ -17,30 +17,19 @@ import qualified Database.HDBC.PostgreSQL as PG
 import qualified Database.HDBC as DB
 
 import qualified Data.Maybe as MB
+import Control.Monad ( void )
 
 type PersistConnection = AcidState Globals
 
 data Globals = Globals { 
   cooperative :: Cooperative,
-  settings :: Maybe (AllocationMethod, PatronageWeights, DisbursalSchedule),
-  accounts :: M.Map Member (M.Map MemberEquityAccount [MemberEquityAction]),
   sessions :: M.Map SessionID (OpenID, Integer)
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 $(deriveSafeCopy 0 'base ''Globals)
-$(deriveSafeCopy 0 'base ''Member)
-$(deriveSafeCopy 0 'base ''PatronageWeights)
-$(deriveSafeCopy 0 'base ''FiscalPeriod)
-$(deriveSafeCopy 0 'base ''GregorianMonth)
-$(deriveSafeCopy 0 'base ''PeriodType)
-$(deriveSafeCopy 0 'base ''GregorianDuration)
-$(deriveSafeCopy 0 'base ''MemberEquityAction)
-$(deriveSafeCopy 0 'base ''MemberEquityAccount)
 $(deriveSafeCopy 0 'base ''Cooperative)
-$(deriveSafeCopy 0 'base ''EquityActionType)
-$(deriveSafeCopy 0 'base ''EquityAccountType)
+$(deriveSafeCopy 0 'base ''PeriodType)
 $(deriveSafeCopy 0 'base ''FiscalCalendarType)
-$(deriveSafeCopy 0 'base ''AllocationMethod)
   
 putIt :: Globals -> Update Globals Globals
 putIt g = put g >> return g
@@ -52,10 +41,6 @@ $(makeAcidic ''Globals ['putIt, 'getIt])
 
 g0 = Globals 
        coop1 
-       (Just settings1)
-       (M.fromList [(m1, M.singleton acct1 []), 
-                    (m2, M.singleton acct1 []),
-                    (m3, M.singleton acct1 [])])
        M.empty
 --generally prefer sets not lists
 
@@ -88,16 +73,27 @@ rsltFromRow (rsltOverStart:rsltOverType:surplus:allocatedOn:_) =
       (DB.fromSql allocatedOn)
       
 rsltSaveFor :: PG.Connection -> Integer -> FinancialResults -> IO ()
-rsltSaveFor dbCn cpId FinancialResults{over=over,surplus=srpls,allocatedOn=Nothing} = do 
-  let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = over
-  let prdStartDay = fromGregorian yr mo 1
-  DB.run dbCn 
-    "insert into FinancialResults values(?,(?,?),?)"
-    [DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType,
-     DB.SqlInteger srpls]
-  DB.commit dbCn  
+rsltSaveFor dbCn cpId FinancialResults{over=over,surplus=srpls,allocatedOn=Nothing} = 
+  do 
+    let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = over
+    let prdStartDay = fromGregorian yr mo 1
+    DB.run dbCn 
+      "insert into FinancialResults values(?,(?,?),?)"
+      [DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType,
+       DB.SqlInteger srpls]
+    DB.commit dbCn  
   
--- rsltUpdateAllocated :: PG.Connection -> Integer -> FinancialResults -> IO ()  
+rsltUpdateAllocated 
+  :: PG.Connection -> Integer -> FiscalPeriod -> Day -> IO ()
+rsltUpdateAllocated dbCn cpId over allocatedOn = do 
+  do 
+    let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = over
+    let prdStartDay = fromGregorian yr mo 1
+    DB.run dbCn
+       "update FinancialResults set allocatedOn = ? where cpId = ? and (rsltOver).prdStart = ? and (rsltOver).prdType = ?"
+       [DB.SqlLocalDate allocatedOn, DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, 
+        DB.SqlString $ show prdType]
+    DB.commit dbCn
 
 ptrngGetFor 
   :: PG.Connection -> Integer -> FiscalPeriod -> IO (M.Map Member (Maybe WorkPatronage))
@@ -142,6 +138,12 @@ mbrGetAll dbCn cpId = do
       [DB.SqlInteger cpId]
   return $ fmap mbrFromRow res
 
+mbrGet :: PG.Connection -> Integer -> Integer -> IO (Maybe Member)
+mbrGet dbCn cpId mbrId = 
+  DB.quickQuery dbCn "select mbrId,firstName from member where (cpId,mbrId)=(?,?)"
+    [DB.SqlInteger cpId, DB.SqlInteger mbrId] >>= 
+  return . fmap mbrFromRow  . MB.listToMaybe
+
 ptrngFromRow :: FiscalPeriod -> [DB.SqlValue] -> WorkPatronage
 ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) = 
   WorkPatronage 
@@ -151,9 +153,10 @@ ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) =
     (DB.fromSql quality)
     (DB.fromSql revenueGenerated)
     performedOver
-    
+
 acnSaveFor :: 
-  PG.Connection -> Integer -> Integer -> Integer -> FiscalPeriod -> MemberEquityAction -> IO ()
+  PG.Connection -> Integer -> Integer -> Integer -> FiscalPeriod -> MemberEquityAction 
+  -> IO ()
 acnSaveFor 
   dbCn cpId mbrId acctId resultOf
   MemberEquityAction{actionType=tp,amount=amt,performedOn=prf} = do 
@@ -165,6 +168,17 @@ acnSaveFor
        DB.SqlString $ show tp, DB.SqlInteger amt, DB.SqlLocalDate prf,
        DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
     DB.commit dbCn
+    
+acnSaveToRolling :: 
+  PG.Connection -> Integer -> Integer -> FiscalPeriod -> MemberEquityAction
+  -> IO ()
+acnSaveToRolling dbCn cpId mbrId resultOf acn = do
+    ((acctId:_):_) <- 
+      DB.quickQuery dbCn "select acctId from MemberEquityAccount where (cpId,mbrId,acctType) = (?,?,?)" 
+        [DB.SqlInteger cpId, DB.SqlInteger mbrId, DB.SqlString $ show RollingPatronage]
+    let rollingAcctId = DB.fromSql acctId
+    acnSaveFor dbCn cpId mbrId rollingAcctId resultOf acn
+    
     
 allocStngGet :: PG.Connection -> Integer -> IO (AllocationMethod, PatronageWeights) 
 allocStngGet dbCn cpId = do 
@@ -181,6 +195,32 @@ allocStngGet dbCn cpId = do
      (DB.fromSql $ res !! 4)
      (DB.fromSql $ res !! 5))
    
+toSqlDouble :: Rational -> DB.SqlValue
+toSqlDouble = DB.toSql . (fromRational::Rational -> Double)
+
+allocStngSaveFor :: 
+  PG.Connection -> Integer -> AllocationMethod -> PatronageWeights -> IO ()
+allocStngSaveFor dbCn cpId allocMethod 
+  PatronageWeights{workw=workw,skillWeightedWorkw=skillWeightedWorkw,
+                   seniorityw=seniorityw,qualityw=qualityw,
+                   revenueGeneratedw=revenueGeneratedw}= do
+  DB.run dbCn
+    "insert into CoopSettings values (?,?,?,?,?,?,?)"
+    [DB.toSql cpId, DB.toSql $ show allocMethod, 
+     toSqlDouble workw, toSqlDouble skillWeightedWorkw, toSqlDouble seniorityw,
+     toSqlDouble qualityw, toSqlDouble revenueGeneratedw]
+  DB.commit dbCn
+
+snrtyMpngsSaveFor :: 
+  PG.Connection -> Integer -> SeniorityMappings -> IO ()
+snrtyMpngsSaveFor dbCn cpId mpngs = do 
+  mapM_ 
+    (\(ent,lvl) -> 
+      DB.run dbCn "insert into SeniorityMappings values (?,?,?)" 
+        [DB.toSql cpId, DB.toSql $ snrtyMpEntStart ent, DB.toSql lvl])
+    (M.toList mpngs)
+  DB.commit dbCn
+
 dsbSchedGet :: PG.Connection -> Integer -> IO DisbursalSchedule   
 dsbSchedGet dbCn cpId = do
   res <- DB.quickQuery dbCn "select (afterAllocation).years, (afterAllocation).months, proportion from DisbursalSchedule where cpId = ?" [DB.SqlInteger cpId]
@@ -189,4 +229,3 @@ dsbSchedGet dbCn cpId = do
       (\(yr:mo:prop:_) -> 
         (GregorianDuration (DB.fromSql yr) (DB.fromSql mo), DB.fromSql prop))
       res
-        

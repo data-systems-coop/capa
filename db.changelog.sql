@@ -125,3 +125,11 @@ insert into CoopSettings values
 insert into DisbursalSchedule values
   (1,(1,0),0.6), (1,(1,6),0.4);
 
+
+--changeset kazimi:seniorityLevels context:prod
+create table SeniorityMappings(
+  cpId integer not null references Cooperative(cpId),
+  startYear integer not null,
+  snrtyMpngLevel integer not null,
+  PRIMARY KEY(cpId, startYear)
+);

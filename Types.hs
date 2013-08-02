@@ -75,8 +75,11 @@ data Cooperative = Cooperative { -- cp
   fiscalCalendarType::FiscalCalendarType
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-type SeniorityMapping = [(Years,Years)]
+data SeniorityMappingEntry = SeniorityMappingEntry { 
+  snrtyMpEntStart::Years 
+} deriving (Show, Read, Eq, Ord, Data, Typeable)
 type SeniorityLevel = Integer
+type SeniorityMappings = M.Map SeniorityMappingEntry SeniorityLevel
 
 data FiscalPeriod = FiscalPeriod {  -- prd
   start::GregorianMonth,
