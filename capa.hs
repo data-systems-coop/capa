@@ -97,7 +97,7 @@ capaApp ::
   ServerPartR
 capaApp ref conn resolveCoopCtrl hState = msum [
     --partial path failurs like missing parameter?
-    dir "control" $ msum [
+    dir "control" $ msum [ --remove control 
          dir "coop" $ msum [
             dir "summary" $ templateResponse "coopSummary" hState
           , dir "register" $ templateResponse "registerCoop" hState
@@ -121,7 +121,7 @@ capaApp ref conn resolveCoopCtrl hState = msum [
        , dir "enter" $ templateResponse "enter" hState 
        , dir "login" $ dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl ref]
   
-  , dir "financial" $ dir "results" $ msum [ 
+  , dir "financial" $ dir "results" $ msum [   -- change to api/  
        method GET >> getAllFinancialResultsDetail ref conn
      , method POST >> putFinancialResults ref conn]
   , dir "members" $ msum [
@@ -141,7 +141,11 @@ capaApp ref conn resolveCoopCtrl hState = msum [
            , dir "save" $ method POST >> postAllocationDisbursal ref conn] ] ]
   , dir "coop" $ msum [
        dir "settings" $ msum [
-          dir "allocate" $ method POST >> putCoopAllocateSettings ref conn] ]
+          dir "allocate" $ msum [ 
+               method POST >> putCoopAllocateSettings ref conn
+             , dir "method" $ method GET >> getAllocMethodDetail ref conn
+             , dir "seniority" $ dir "levels" $ 
+                 method GET >> getSeniorityMappings ref conn] ] ]
   , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref]
                      
 main = do

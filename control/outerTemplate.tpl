@@ -5,7 +5,7 @@
 document.write('<script type="text/javascript" src="' + ('https:'==document.location.protocol?'https://':'http://c.') + 'jslogger.com/jslogger.js"><\/script>');
 </script>
 <script type="text/javascript">
-window.jslogger = new JSLogger({apiKey: "51fb259e1c07bf2772000018", track:false});
+window.jslogger = new JSLogger({apiKey: "51fb259e1c07bf2772000018", track:true});
 </script>
 <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.min.css" rel="stylesheet" media="screen"/>
 <script src="//code.jquery.com/jquery.js"></script>
@@ -26,11 +26,15 @@ function formatGregorianDay(day){
  return sprintf('%s/%s/%s', day[1], day[2], day[0])
 }
 // add buttons to go back, forward
-function fiscalPeriodPicker(id){
+function fiscalPeriodPicker(id, initial){
   $.getJSON("/fiscal/periods",function(periods){
     $.each(periods,function(i,period){
       addPeriod(period, id)
     })
+    if(initial != undefined){
+      $(id).val(initial)
+    }
+    $(id).change()
   })
 }
 function addPeriod(per, id){ 
@@ -40,22 +44,22 @@ function addPeriod(per, id){
             formatFiscalPeriod(per))
   $(id).append(opt)
 }
-function seniorityPicker(id){
-  //load for cooperative seniority levels
-  var levels = 
-    [{name:"Level 1", value: 1}, {name:"Level 2", value: 2}, 
-     {name:"Level 3", value: 3}, {name:"Level 4", value: 4}]
-  levels.forEach(function(lev){
-    $(id).append(sprintf("<option value='%s'>%s</option>",lev.value, lev.name))
+function seniorityPicker(id){ //get rid of this altogether
+  $.getJSON("/coop/settings/allocate/seniority/levels", function(levels){
+    levels.forEach(function(lev){
+      $(id).append(sprintf("<option value='%s'>%s</option>",lev[0].start, lev[1]))
+    })
   })
 }
 function qualityPicker(id){
-  var levels = 
+  var levels =  //should come from server
    [{name:"Average", value:1}, {name:"Good", value:2}, {name:"Great", value:3}]
   levels.forEach(function(lev){
    $(id).append(sprintf("<option value='%s'>%s</option>",lev.value, lev.name))
   })
 }
+var allocMethodFields = 
+  ["work", "skillWeightedWork", "seniority", "quality", "revenueGenerated"]
 </script>
 </head>
 <body>

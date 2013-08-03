@@ -114,6 +114,16 @@ data AllocationMethod =
   ProductiveHours | Wages | SimpleMix | SeniorityMix | ElaborateMix
   deriving (Show, Read, Eq, Ord, Data, Typeable)
 
+data PatronageFieldDetail = PatronageFieldDetail {
+  ptrngFldLabel::String
+} deriving (Show, Read, Eq, Ord, Data, Typeable)
+
+workFieldDetail = PatronageFieldDetail "work" 
+skillWeightedWorkFieldDetail =  PatronageFieldDetail "skillWeightedWork"
+seniorityFieldDetail = PatronageFieldDetail "seniority" 
+qualityFieldDetail = PatronageFieldDetail "quality" 
+revenueGeneratedFieldDetail = PatronageFieldDetail "revenueGenerated" 
+
 -- sample data
 (f1,f2) = 
   (FiscalPeriod (GregorianMonth 2012 1) Year,

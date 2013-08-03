@@ -51,11 +51,25 @@ getLatestFiscalPeriods ref = do
 
 -- EASY 
 -- getCooperative :: PersistentConnection -> ServerPartR
+
 -- putCooperative :: PersistentConnection -> ServerPartR
 
--- getDefaultDisbursalSchedule
--- putDefaultDisbursalSchedule
+-- getDefaultDisbursalSchedule (not rush)
 
+putDefaultDisbursalSchedule :: PersistConnection -> PG.Connection -> ServerPartR
+putDefaultDisbursalSchedule ref dbCn = do 
+  cpId <- getSessionCoopId ref
+  defaultDisbSchedStr <- lookBS "defaultDisbursalSchedule"
+  let Just defaultDisbSched = 
+        (decode defaultDisbSchedStr)::Maybe DisbursalSchedule
+  liftIO $ dsbSchedSaveFor dbCn cpId defaultDisbSched
+  ok $ toResponse ()
+
+getSeniorityMappings :: PersistConnection -> PG.Connection -> ServerPartR
+getSeniorityMappings ref dbCn = do
+  cpId <- getSessionCoopId ref
+  (liftIO $ snrtyMpngsGet dbCn cpId) >>= 
+    ok . toResponse . JSONData . M.toList
 
 putCoopAllocateSettings :: PersistConnection -> PG.Connection -> ServerPartR
 putCoopAllocateSettings ref dbCn = do 
@@ -65,9 +79,23 @@ putCoopAllocateSettings ref dbCn = do
       sm <- lookSeniorityMappings allocMethod
       liftIO $ saveCoopAllocateSettings dbCn cpId allocMethod pw sm
       ok $ toResponse ()
--- HARDER
--- getCalcMethod
 
+getAllocMethodDetail :: PersistConnection -> PG.Connection -> ServerPartR
+getAllocMethodDetail ref dbCn = do
+  cpId <- getSessionCoopId ref
+  (method, _) <- liftIO $ allocStngGet dbCn cpId 
+  let fieldDetails = 
+       case method of 
+        ProductiveHours -> [workFieldDetail]
+        Wages -> [skillWeightedWorkFieldDetail]
+        SimpleMix -> [workFieldDetail, skillWeightedWorkFieldDetail]
+        SeniorityMix -> 
+          [workFieldDetail, skillWeightedWorkFieldDetail, seniorityFieldDetail]
+        ElaborateMix -> 
+          [workFieldDetail, skillWeightedWorkFieldDetail, seniorityFieldDetail,
+           qualityFieldDetail, revenueGeneratedFieldDetail]
+  ok $ toResponse $ JSONData fieldDetails
+      
 saveCoopAllocateSettings :: 
   PG.Connection -> Integer -> AllocationMethod -> PatronageWeights -> 
     Maybe SeniorityMappings

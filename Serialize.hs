@@ -38,13 +38,11 @@ instance ToJSON MemberEquityAction where
 
 instance ToJSON GregorianMonth where
   toJSON (GregorianMonth year month) = 
-    	 object ["year" .= year, 
-	 	 "month" .= month]
+    	 object ["year" .= year, "month" .= month]
 
 instance ToJSON FiscalPeriod where
   toJSON FiscalPeriod{start=st,periodType=pt} = 
-  	 object ["start" .= toJSON st,
-	  	 "periodType" .= AG.toJSON pt]
+  	 object ["start" .= toJSON st, "periodType" .= AG.toJSON pt]
 
 instance ToJSON FinancialResults where
   toJSON FinancialResults{over=ov,surplus=sr,allocatedOn=ao} = 
@@ -56,6 +54,12 @@ instance ToJSON Day where
   toJSON d = 
     let (yr,mo,dy) = toGregorian d
     in Array $ V.fromList [toJSON yr,toJSON mo,toJSON dy]
+       
+instance ToJSON PatronageFieldDetail where
+  toJSON PatronageFieldDetail{ptrngFldLabel=lbl} = object ["ptrngFldLabel" .= lbl] 
+
+instance ToJSON SeniorityMappingEntry where
+  toJSON SeniorityMappingEntry{snrtyMpEntStart=start} = object ["start" .= start]
 
 --FromQParams for PatronageWeights, WorkPatronage, FinancialResults, MemberEqAct
 
@@ -77,8 +81,7 @@ instance FromJSON PeriodType where
   parseJSON (String t) = pure $ read $ DT.unpack t
      
 instance FromJSON FiscalPeriod where
-  parseJSON (Object v) = 
-     FiscalPeriod <$> v .: "start" <*> v .: "periodType"
+  parseJSON (Object v) = FiscalPeriod <$> v .: "start" <*> v .: "periodType"
 
 instance FromJSON Day where
   parseJSON (Array a) = 
@@ -90,3 +93,7 @@ instance FromJSON Day where
 instance FromJSON SeniorityMappingEntry where
   parseJSON (Object v) = 
     SeniorityMappingEntry <$> v .: "start"
+
+instance FromJSON GregorianDuration where 
+  parseJSON (Object v) = GregorianDuration <$> v .: "years" <*> v .: "months"
+  

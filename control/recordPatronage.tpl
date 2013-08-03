@@ -1,3 +1,4 @@
+<!-- -*-HTML-*- -->
 <apply template="outerTemplate">
 
 <script>
@@ -21,24 +22,20 @@ function loadParameters(){
 function setupForm(){
   seniorityPicker("#seniority")
   qualityPicker("#quality")  
-  //get method -> name. use name to get field list
-  var allFields =       
-      ["work", "skillWeightedWork", "seniority", "quality", "revenueGenerated"]
-  var calcMethodFields = 
-      ["work", "skillWeightedWork", "seniority"]
-  allFields.forEach(function(e){
-    if(calcMethodFields.indexOf(e) == -1){
-      $("#" + e).remove()
-      $("label[for='" + e + "']").remove()
-    }
+  $.getJSON("/coop/settings/allocate/method", function(fieldInfo){
+    allocMethodFields.forEach(function(e){
+      if(!fieldInfo.some(function(f){return f.ptrngFldLabel == e})){
+        $("#" + e).remove()
+        $("label[for='" + e + "']").remove()
+      }
+    })
   })
+  var per = encodeURI($.url().param("period"))
   $('#addForm').ajaxForm({
        success: function(){
-         var per = encodeURI($.url().param("period"))
          window.location.href = sprintf("/control/members/patronage/period?period=%s", per)
        }
     })
-  var per = encodeURI($.url().param("period"))
   $("#cancel").attr("href",sprintf("/control/members/patronage/period?period=%s",per))
 }
 </script>

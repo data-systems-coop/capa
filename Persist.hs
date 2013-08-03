@@ -23,7 +23,7 @@ type PersistConnection = AcidState Globals
 
 data Globals = Globals { 
   cooperative :: Cooperative,
-  sessions :: M.Map SessionID (OpenID, Integer)
+  sessions :: M.Map SessionID (OpenID, Integer) -- add alloc method?
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 $(deriveSafeCopy 0 'base ''Globals)
@@ -221,6 +221,15 @@ snrtyMpngsSaveFor dbCn cpId mpngs = do
     (M.toList mpngs)
   DB.commit dbCn
 
+snrtyMpngsGet :: PG.Connection -> Integer -> IO SeniorityMappings
+snrtyMpngsGet dbCn cpId =
+  (DB.quickQuery dbCn "select startYear, snrtyMpngLevel from SeniorityMappings where cpId = ? order by startYear asc" [DB.toSql cpId]) >>= 
+    return . M.fromList . fmap snrtyMpngFromRow
+  
+snrtyMpngFromRow :: [DB.SqlValue] -> (SeniorityMappingEntry, SeniorityLevel)
+snrtyMpngFromRow [startYear,level] = 
+  (SeniorityMappingEntry $ DB.fromSql startYear, DB.fromSql level)
+
 dsbSchedGet :: PG.Connection -> Integer -> IO DisbursalSchedule   
 dsbSchedGet dbCn cpId = do
   res <- DB.quickQuery dbCn "select (afterAllocation).years, (afterAllocation).months, proportion from DisbursalSchedule where cpId = ?" [DB.SqlInteger cpId]
@@ -229,3 +238,12 @@ dsbSchedGet dbCn cpId = do
       (\(yr:mo:prop:_) -> 
         (GregorianDuration (DB.fromSql yr) (DB.fromSql mo), DB.fromSql prop))
       res
+
+dsbSchedSaveFor :: PG.Connection -> Integer -> DisbursalSchedule -> IO ()
+dsbSchedSaveFor dbCn cpId schd = do
+  mapM_
+    (\(GregorianDuration yr mo, portion) -> 
+      DB.run dbCn "insert into DisbursalSchedule values (?,(?,?),?)" 
+        [DB.toSql cpId, DB.toSql yr, DB.toSql mo, toSqlDouble portion])
+    schd
+  DB.commit dbCn

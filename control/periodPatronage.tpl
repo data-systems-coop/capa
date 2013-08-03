@@ -1,24 +1,20 @@
+<!-- -*-HTML-*- -->
 <apply template="outerTemplate">
 
 <script>
 $(document).ready(function() {
-  //get method -> name. use name to get field list
-  var calcMethodFieldInfo = 
-    [{name:"work", label:"Productive Hours"},
-     {name:"skillWeightedWork", label:"Wages"},
-     {name:"seniority", label:"Seniority"}, //remove seniority
-     {name:"quality", label:"Quality"},
-     {name:"revenueGenerated", label:"Revenue Generated"}]
-  createPatronageHeaders(calcMethodFieldInfo)
-  fiscalPeriodPicker("#period")
-  $("#period").change(function(){
-    $.getJSON("/members/patronage/" + encodeURI($("#period").val()), function(all){
-      var unrecordedMembers = all[1]
-      loadMemberPatronage(all[0], calcMethodFieldInfo)
-      setupUnrecordedPicker(all[1])
+  $.getJSON("/coop/settings/allocate/method", function(fieldInfo){
+    adjustPatronageHeaders(fieldInfo)
+    var qs = $.url().param()
+    fiscalPeriodPicker("#period", qs.period)
+    $("#period").change(function(){
+      $.getJSON("/members/patronage/" + encodeURI($("#period").val()), function(all){
+        var unrecordedMembers = all[1]
+        loadMemberPatronage(all[0], fieldInfo)
+        setupUnrecordedPicker(all[1])
+      })
     })
   })
-  //select period based on parameter
 })
 </script>
 
@@ -31,11 +27,13 @@ $(document).ready(function() {
 <div class="row">
 <div class="span8">
 <script>
-function createPatronageHeaders(fieldInfo){
-  //remove irrelvant, instead of add relevant, remove label field above.
-  fieldInfo.forEach(function(el){
-    $("#patronageHead").append(sprintf("<th>%s</th>",el.label))
+function adjustPatronageHeaders(fieldInfo){
+  allocMethodFields.forEach(function(e){
+    if(!fieldInfo.some(function(f){return f.ptrngFldLabel == e})){
+      $("#" + e).remove()
+    }
   })
+
 }
 function loadMemberPatronage(memberPatronage, fieldInfo){
   $("#patronage").empty()
@@ -48,13 +46,17 @@ function appendPatronage(memberPatronage, fieldInfo){
   var patronage = memberPatronage[1]
   var row = sprintf("<tr><td>%s</td>", member.firstName)
   fieldInfo.forEach(function(el){    
-    row += sprintf("<td>%s</td>", patronage[el.name])
+    row += sprintf("<td>%s</td>", patronage[el.ptrngFldLabel])
   })
   $("#patronage").append(row + "</tr>")
 }
 </script>
 <table class="table">
-<thead><tr id="patronageHead"><th>Member</th></tr></thead>
+<thead><tr id="patronageHead">
+  <th>Member</th><th id="work">Productive Hours</th>
+  <th id="skillWeightedWork">Wages</th><th id="seniority">Seniority</th>
+  <th id="quality">Quality</th><th id="revenueGenerated">Revenue Generated</th>
+</tr></thead>
 <tbody id="patronage">
 </tbody>
 </table>

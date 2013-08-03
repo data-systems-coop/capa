@@ -1,3 +1,4 @@
+<!-- -*-HTML-*- -->
 <apply template="outerTemplate">
 
 <script>
