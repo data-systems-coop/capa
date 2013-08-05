@@ -1,32 +1,46 @@
+<!-- -*-HTML-*- -->
 <apply template="outerTemplate">
-
+<script>$(document).ready(function(){ setupForm() })</script>
 <script>
 function setupForm(){
-  $('.datepicker').datepicker({format: 'mm-dd-yyyy'})
+  loadMemberSummary()  
+  loadCoop()
 }
-$(document).ready(setupForm)
 </script>
 
+<script>
+function loadCoop(){
+  $.getJSON("/coop", function(c){
+    $("#name").append(c.name)
+    $("#usageDates").append(sprintf("%s/%s", c.usageStart[1], c.usageStart[0]))
+  })
+}
+</script>
 <div class="row">
 <div class="span5">
-<h3>Data Systems [3/1984 - Present]</h3>
+<h3><span id="name"/> [<span id="usageDates"/>]</h3>
 </div>
 </div>
 
+
+<script>
+function loadMemberSummary(){
+  $.getJSON("/members", function(ms){ $.each(ms, function(i,m){ loadMember(m) }) })
+}
+function loadMember(m){
+  var member = m[0]
+  var bal = m[1]
+  $("#memberSummary").append(
+    sprintf("<tr><td>%s %s</td><td>$%s</td><td>%s</td></tr>",
+             member.firstName, "", bal, ""))
+}
+</script>
 <div class="row">
 <div class="span8">
 
 <table class="table">
-<thead>
-  <tr><th>Member</th><th>Equity</th><th>Accepted on</th><th>Left on</th></tr>
-</thead>
-<tbody id="result">
-  <tr><td>Aaron Desrochers</td><td>$5,210</td><td>4/2009</td>
-    <td><input type="text" class="datepicker input-small">
-        <button type="submit" class="btn btn-small">Leave</button>   </td></tr>
-  <tr><td>Kanishka Azimi</td><td>$300</td><td>3/2009</td>
-    <td>4/1/2009</td></tr>
-</tbody>
+<thead><tr><th>Member</th><th>Equity</th><th>Accepted on</th></tr></thead>
+<tbody id="memberSummary"></tbody>
 </table>
 
 </div>
@@ -35,11 +49,7 @@ $(document).ready(setupForm)
 
 <div class="row">
 <div class="span3">
-<button type="submit" class="btn">New Member</button>
-</div>
-<div class="span2">
-<label class="checkbox"> 
-  <input type="checkbox">Show Deactivated</label>
+<a class="btn" href="/control/members/add">New Member</a>
 </div>
 </div>
 

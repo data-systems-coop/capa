@@ -83,3 +83,5 @@ scheduleDisbursalsFor
             in makeAction disburse on)
          schedule
 
+runningBalance :: [MemberEquityAction] -> [(MemberEquityAction, Money)]
+runningBalance acns = zip acns $ scanl1 (+) $ fmap amount acns

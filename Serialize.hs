@@ -13,7 +13,11 @@ import qualified Data.Vector as V
 import Data.Time (Day, fromGregorian , toGregorian, UTCTime(..)) 
 import qualified Data.Text as DT  
 
-  
+instance ToJSON Cooperative where   
+  toJSON Cooperative{cooperativeId=id,name=nm,username=usr,usageStart=strt,usageEnd=end,
+                     fiscalCalendarType=cal} = 
+    object ["cooperativeId" .= id, "name" .= nm, "username" .= usr, "usageStart" .= strt,
+            "usageEnd" .= end, "fiscalCalendarType" .= toJSON cal]
 
 instance ToJSON Member where
   toJSON Member{firstName=fn, memberId=i} = 
@@ -28,7 +32,7 @@ instance ToJSON WorkPatronage where
 	 	 "skillWeightedWork" .= skillWeightedWork, 
 		 "seniority" .= seniority, "quality" .= quality,
 		 "revenueGenerated" .= revenueGenerated, 
-		 "performedOver" .= toJSON prf]
+		 "performedOver" .= AG.toJSON prf]
 
 instance ToJSON MemberEquityAction where
   toJSON MemberEquityAction{actionType=act,amount=amt,performedOn=prf} = 
@@ -60,6 +64,10 @@ instance ToJSON PatronageFieldDetail where
 
 instance ToJSON SeniorityMappingEntry where
   toJSON SeniorityMappingEntry{snrtyMpEntStart=start} = object ["start" .= start]
+
+instance ToJSON FiscalCalendarType where
+  toJSON FiscalCalendarType{startf=st,periodTypef=prd} = 
+    object["start" .= st, "periodType" .= AG.toJSON prd]
 
 --FromQParams for PatronageWeights, WorkPatronage, FinancialResults, MemberEqAct
 

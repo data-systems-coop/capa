@@ -64,15 +64,16 @@ templateResponse name hState =  -- parameter to check cookie or not
   	   (\(bldr,_) -> ok $ toResponse $ toByteString bldr)
 	   rendered  	
      
-
-resolveCoop authUriBase ref = do 
+resolveCoop::String -> PG.Connection -> PersistConnection -> ServerPartR
+resolveCoop authUriBase dbCn ref = do 
   token <- lookString "token"
   let reqUri = authUriBase ++ token
   r <- liftIO $ simpleHttp reqUri
   let Just (A.Object r2) = A.decode r
   let AT.Success pf = (AT.parse (A..: "profile") r2)::AT.Result A.Object
   let AT.Success ident = (AT.parse (A..: "identifier") pf)::AT.Result String
-  Globals{cooperative=Cooperative{username=user}} <- query' ref GetIt
+  -- auto resolve cp id by query
+  Cooperative{username=user} <- liftIO $ coopGet dbCn 1
   let redir = if user == ident then "/control/financial/results" else "/control/enter"
   (if (user == ident) then do
       liftIO $ LG.infoM "resolveCoop" $ printf "%s resolved for %s" user ("c1"::String)
@@ -92,7 +93,7 @@ resolveCoop authUriBase ref = do
 capaApp :: 
   PersistConnection -> 
   PG.Connection -> 
-  (PersistConnection -> ServerPartR) ->
+  ServerPartR ->
   TemplateStore -> 
   ServerPartR
 capaApp ref conn resolveCoopCtrl hState = msum [
@@ -101,8 +102,11 @@ capaApp ref conn resolveCoopCtrl hState = msum [
          dir "coop" $ msum [
             dir "summary" $ templateResponse "coopSummary" hState
           , dir "register" $ templateResponse "registerCoop" hState
-          , dir "settings" $ templateResponse "coopSettings" hState ] 
-             -- view all, update alloc, update disbursal
+          , dir "settings" $ msum [
+              templateResponse "coopSettings" hState 
+            , dir "disburse" $ dir "schedule" $ 
+                templateResponse "setDefaultDisbursalSchedule" hState] ]
+             -- view all
        , dir "member" $ msum [
             dir "accounts" $ templateResponse "memberAccounts" hState
           , dir "account" $ dir "action" $ dir "add" $ 
@@ -119,7 +123,7 @@ capaApp ref conn resolveCoopCtrl hState = msum [
             dir "members"  $ dir "allocationsDisbursals" $ 
               templateResponse "allocationsDisbursals" hState ] 
        , dir "enter" $ templateResponse "enter" hState 
-       , dir "login" $ dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl ref]
+       , dir "login" $ dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl]
   
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
        method GET >> getAllFinancialResultsDetail ref conn
@@ -133,20 +137,25 @@ capaApp ref conn resolveCoopCtrl hState = msum [
        , method POST >> putMemberPatronage ref conn
        , dir "equity" $ msum [
            dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref conn
-         , dir "history" $ method POST >> putEquityAction ref ] ]
+         , dir "history" $ method POST >> putEquityAction ref 
+         , dir "account" $ msum [
+              dir "actions" $ method GET >> getActionsForMemberEquityAcct ref conn] ] ]
   , dir "equity" $ msum [
        dir "members" $ msum [
          dir "allocate" $ msum [
              dir "generate" $ method POST >> postAllocateToMembers ref conn 
            , dir "save" $ method POST >> postAllocationDisbursal ref conn] ] ]
   , dir "coop" $ msum [
-       dir "settings" $ msum [
+       method GET >> getCooperative ref conn  
+     , dir "settings" $ msum [
           dir "allocate" $ msum [ 
                method POST >> putCoopAllocateSettings ref conn
              , dir "method" $ method GET >> getAllocMethodDetail ref conn
              , dir "seniority" $ dir "levels" $ 
-                 method GET >> getSeniorityMappings ref conn] ] ]
-  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref]
+                 method GET >> getSeniorityMappings ref conn] 
+        , dir "disburse" $ dir "schedule" $ dir "default" $  
+                 method POST >> putDefaultDisbursalSchedule ref conn] ]
+  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref conn]
                      
 main = do
   s <- SYS.openlog "capa" [] SYS.USER LG.DEBUG
@@ -183,7 +192,7 @@ main = do
      capaApp 
        x 
        conn 
-       (resolveCoop authUriBase))
+       (resolveCoop authUriBase conn x))
     ehs 
   DB.disconnect conn
 

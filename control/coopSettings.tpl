@@ -14,8 +14,7 @@ function setupForm(){
   setupAddLevel()
   $('#updateForm').ajaxForm({
        success: function(){
-	 var per = encodeURI($.url().param("period"))
-	 window.location.href = sprintf("/control/members/patronage/period?period=%s", per)
+	 window.location.href = sprintf("/control/financial/results")
        }
     })
 }

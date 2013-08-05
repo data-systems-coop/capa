@@ -60,6 +60,7 @@ function qualityPicker(id){
 }
 var allocMethodFields = 
   ["work", "skillWeightedWork", "seniority", "quality", "revenueGenerated"]
+function redirect(to){ window.location.href = to; }
 </script>
 </head>
 <body>

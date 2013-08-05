@@ -1,8 +1,17 @@
+<!-- -*-HTML-*- -->
 <apply template="outerTemplate">
-
+<script>$(document).ready(function(){setupForm() })</script>
 <script>
+function setupForm(){
+  //load map of member,acctType -> acctId 
+  // on person change ... reload
+  // on account type change ... reload
+  // trigger reload
+  reloadActions(1,2) 
+}
 </script>
 
+<!-- switch to drop down --> 
 <div class="row">
 <div class="span8">
 <div class="pagination">
@@ -30,6 +39,25 @@
 </div>
 
 
+<script>
+function reloadActions(mbrId, acctId){
+  //clear rows
+  $.getJSON(
+     sprintf("/member/equity/account/actions?mbrId=%s&acctId=%s",mbrId,acctId),
+     function(acns){
+       $.each(acns, function(i,a){ loadAction(a) })
+     })
+}
+function loadAction(a){
+  var act = a[0]
+  var res = a[1]
+  var bal = a[2]
+  $("#result").append(
+    sprintf("<tr><td>%s</td><td>%s</td><td>$%s</td><td>%s</td><td>$%s</td></tr>", 
+       formatGregorianDay(act.performedOn), act.actionType, act.amount, 
+       formatFiscalPeriod(res), bal))
+}
+</script>
 <div class="row">
 <div class="span7">
 
@@ -38,8 +66,7 @@
   <tr><th>Performed on</th><th>Type</th><th>Amount</th>
   <th>Result of</th><th>Balance</th></tr>
 </thead>
-<tbody id="result">
-</tbody>
+<tbody id="result"></tbody>
 </table>
 
 </div>

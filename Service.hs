@@ -30,10 +30,10 @@ import Text.Printf(printf)
 
 -- MEDIUM
 -- for provided year, provide 2 years back and forward
-getLatestFiscalPeriods :: PersistConnection -> ServerPartR
-getLatestFiscalPeriods ref = do
+getLatestFiscalPeriods :: PersistConnection -> PG.Connection -> ServerPartR
+getLatestFiscalPeriods ref dbCn = do
   cpId <- getSessionCoopId ref
-  Globals{cooperative=Cooperative{fiscalCalendarType=ft}} <- query' ref GetIt
+  Cooperative{fiscalCalendarType=ft} <- liftIO $ coopGet dbCn cpId
   let FiscalCalendarType{startf=startMonth, periodTypef=pt} = ft
   UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
   let (endYear,_,_) = toGregorian $ addGregorianYearsClip 2 day
@@ -49,9 +49,13 @@ getLatestFiscalPeriods ref = do
           (take 10 $ enumStarts end)
   ok $ toResponse $ JSONData periods
 
--- EASY 
--- getCooperative :: PersistentConnection -> ServerPartR
+getCooperative :: PersistConnection -> PG.Connection -> ServerPartR
+getCooperative ref dbCn = do
+  cpId <- getSessionCoopId ref
+  (liftIO $ coopGet dbCn cpId) >>= 
+    ok . toResponse . JSONData 
 
+-- EASY 
 -- putCooperative :: PersistentConnection -> ServerPartR
 
 -- getDefaultDisbursalSchedule (not rush)
@@ -59,7 +63,7 @@ getLatestFiscalPeriods ref = do
 putDefaultDisbursalSchedule :: PersistConnection -> PG.Connection -> ServerPartR
 putDefaultDisbursalSchedule ref dbCn = do 
   cpId <- getSessionCoopId ref
-  defaultDisbSchedStr <- lookBS "defaultDisbursalSchedule"
+  defaultDisbSchedStr <- lookBS "disbursalSchedule"
   let Just defaultDisbSched = 
         (decode defaultDisbSchedStr)::Maybe DisbursalSchedule
   liftIO $ dsbSchedSaveFor dbCn cpId defaultDisbSched
@@ -211,12 +215,11 @@ getMember ref dbCn = do
     cpId <- getSessionCoopId ref
     (liftIO $ mbrGet dbCn cpId mid) >>= (ok . toResponse . JSONData)
 
--- EASY - detail
 getMembers :: PersistConnection -> PG.Connection -> ServerPartR
-getMembers ref dbCn = do -- get sum of equity balances with each member
+getMembers ref dbCn = do 
   cpId <- getSessionCoopId ref
-  ms <- liftIO $ mbrGetAll dbCn cpId
-  ok $ toResponse $ JSONData ms
+  (liftIO $ mbrGetAll dbCn cpId) >>= 
+    ok . toResponse . JSONData
 
 getAllFinancialResultsDetail :: PersistConnection -> PG.Connection -> ServerPartR
 getAllFinancialResultsDetail ref dbCn = do 
@@ -268,8 +271,7 @@ postAllocationDisbursal ref dbCn =
   do cpId <- getSessionCoopId ref
      (allocateOver, me) <- handleAllocateToMembers ref dbCn
      liftIO $ LG.infoM "Service.postAllocationDisbursal" $ 
-       printf "%d. alloc for %s" cpId (show allocateOver)
-     
+       printf "%d. alloc for %s" cpId (show allocateOver)     
      disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId     
      liftIO $ mapM_
        (\(Member{memberId=mbrId}, allocAcn) -> do
@@ -283,10 +285,18 @@ postAllocationDisbursal ref dbCn =
      ok $ toResponse ()
         
 
+getActionsForMemberEquityAcct :: PersistConnection -> PG.Connection -> ServerPartR
+getActionsForMemberEquityAcct ref dbCn = do 
+  cpId <- getSessionCoopId ref
+  mbrId <- lookRead "mbrId"
+  acctId <- lookRead "acctId"
+  all <- liftIO $ acnGetFor dbCn cpId mbrId acctId
+  let (acns,rstOfs) = unzip all
+  let acnBals = runningBalance acns
+  ok $ toResponse $ JSONData $ reverse $ zipWith (\(a,b) c -> (a,c,b)) acnBals rstOfs
+  
 -- EASY --
--- getActionsForMemberEquityAccount
-    -- pair each result with running balance, and any associated allocation entry
--- getMemberEquityAccounts        
+-- getAllMemberEquityAccounts        
 
 -- EASY 
 putEquityAction :: PersistConnection -> ServerPartR
@@ -303,8 +313,8 @@ putEquityAction ref = do
   ok $ toResponse ()
 
 
---util 
 
+--util--
 getSessionCoopId :: PersistConnection -> ServerPart Integer
 getSessionCoopId ref = do 
   Globals{sessions=sessions} <- query' ref GetIt
@@ -313,4 +323,3 @@ getSessionCoopId ref = do
   guard $ MB.isJust res
   let Just (_,cpId) = res
   return cpId
-  

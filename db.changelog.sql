@@ -133,3 +133,32 @@ create table SeniorityMappings(
   snrtyMpngLevel integer not null,
   PRIMARY KEY(cpId, startYear)
 );
+
+
+--changeset kazimi:coop context:prod
+create type FiscalCalendarType AS (start int, prdType varchar(20));
+
+alter table Cooperative 
+    add column cpName varchar(130)
+  , add column username varchar(150)
+  , add column usageStart date
+  , add column usgaeEnd date
+  , add column fiscalCalendarType FiscalCalendarType;
+
+update Cooperative 
+set cpName = 'coop' || cpId
+  , username = 'https://www.google.com/profiles/102678013619698873278'
+  , usageStart = '2012-01-01'
+  , fiscalCalendarType = (1,'Year');
+
+alter table Cooperative 
+    alter column cpName set not null
+  , alter column userName set not null
+  , alter column usageStart set not null
+  , alter column fiscalCalendarType set not null;
+
+
+--changeset kazimi:coop-fix context:prod
+alter table Cooperative rename column usgaeEnd to usageEnd;
+
+

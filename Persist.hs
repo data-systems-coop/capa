@@ -22,14 +22,10 @@ import Control.Monad ( void )
 type PersistConnection = AcidState Globals
 
 data Globals = Globals { 
-  cooperative :: Cooperative,
   sessions :: M.Map SessionID (OpenID, Integer) -- add alloc method?
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 $(deriveSafeCopy 0 'base ''Globals)
-$(deriveSafeCopy 0 'base ''Cooperative)
-$(deriveSafeCopy 0 'base ''PeriodType)
-$(deriveSafeCopy 0 'base ''FiscalCalendarType)
   
 putIt :: Globals -> Update Globals Globals
 putIt g = put g >> return g
@@ -39,12 +35,20 @@ getIt = ask
 
 $(makeAcidic ''Globals ['putIt, 'getIt])
 
-g0 = Globals 
-       coop1 
-       M.empty
+g0 = Globals M.empty
 --generally prefer sets not lists
 
--- prdFromRow       
+coopFromRow :: [DB.SqlValue] -> Cooperative
+coopFromRow [cpId,name,username,usageStart,usageEnd,calStart,calPrd] = 
+  let calType = FiscalCalendarType (DB.fromSql calStart) (read $ DB.fromSql calPrd)
+  in Cooperative (DB.fromSql cpId) (DB.fromSql name) (DB.fromSql username)
+    (DB.fromSql usageStart) (DB.fromSql usageEnd) calType
+
+coopGet :: PG.Connection -> Integer -> IO Cooperative
+coopGet dbCn cpId = do 
+  (row:_) <- DB.quickQuery dbCn 
+    "select cpId, cpName, username, usageStart, usageEnd, (fiscalCalendarType).start, (fiscalCalendarType).prdType from Cooperative where cpId = ?" [DB.toSql cpId]
+  return $ coopFromRow row
 
 rsltGetAll :: PG.Connection -> Integer -> IO [FinancialResults]
 rsltGetAll dbCn cpId = do
@@ -131,18 +135,17 @@ mbrFromRow :: [DB.SqlValue] -> Member
 mbrFromRow (mbrId:firstName:_) = 
   Member (DB.fromSql firstName) (DB.fromSql mbrId)
   
-mbrGetAll :: PG.Connection -> Integer -> IO [Member]
+mbrGetAll :: PG.Connection -> Integer -> IO [(Member,Money)]
 mbrGetAll dbCn cpId = do
-  res <- 
-    DB.quickQuery dbCn "select mbrId,firstName from member where cpId=?" 
-      [DB.SqlInteger cpId]
-  return $ fmap mbrFromRow res
+  (DB.quickQuery dbCn "select mbrId,firstName, coalesce((select sum(amount) from MemberEquityAction where (cpId,mbrId) = (a.cpId,a.mbrId)),0) as total from member a where cpId=?"
+     [DB.SqlInteger cpId]) >>= 
+    return . fmap (\r -> (mbrFromRow r,DB.fromSql $ r !! 2))
 
 mbrGet :: PG.Connection -> Integer -> Integer -> IO (Maybe Member)
 mbrGet dbCn cpId mbrId = 
   DB.quickQuery dbCn "select mbrId,firstName from member where (cpId,mbrId)=(?,?)"
     [DB.SqlInteger cpId, DB.SqlInteger mbrId] >>= 
-  return . fmap mbrFromRow  . MB.listToMaybe
+  return . fmap mbrFromRow . MB.listToMaybe
 
 ptrngFromRow :: FiscalPeriod -> [DB.SqlValue] -> WorkPatronage
 ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) = 
@@ -179,7 +182,27 @@ acnSaveToRolling dbCn cpId mbrId resultOf acn = do
     let rollingAcctId = DB.fromSql acctId
     acnSaveFor dbCn cpId mbrId rollingAcctId resultOf acn
     
-    
+acnFrom :: [DB.SqlValue] -> MemberEquityAction 
+acnFrom (acnType:amnt:perfOn:_) = 
+  MemberEquityAction (read $ DB.fromSql acnType) (DB.fromSql amnt) (DB.fromSql perfOn)
+
+prdFrom :: [DB.SqlValue] -> FiscalPeriod --use more
+prdFrom (start:prdType:_) = 
+  let (yr,mo,_) = toGregorian $ DB.fromSql start
+  in FiscalPeriod (GregorianMonth yr mo) (read $ DB.fromSql prdType)
+
+acnGetFor :: 
+  PG.Connection -> Integer -> Integer -> Integer -> 
+    IO [(MemberEquityAction, Maybe FiscalPeriod)]
+acnGetFor dbCn cpId mbrId acctId = do
+  (DB.quickQuery dbCn "select acnType, amount, performedOn, (resultOf).prdStart, (resultOf).prdType from MemberEquityAction where (cpId,mbrId,acctId) = (?,?,?) order by performedOn asc"
+    [DB.toSql cpId, DB.toSql mbrId, DB.toSql acctId]) >>= 
+    return . 
+      fmap 
+        (\r -> 
+          (acnFrom r, 
+           if (r !! 3) == DB.SqlNull then Nothing else Just $ prdFrom $ drop 3 r))
+  
 allocStngGet :: PG.Connection -> Integer -> IO (AllocationMethod, PatronageWeights) 
 allocStngGet dbCn cpId = do 
   (res:_) <- 
