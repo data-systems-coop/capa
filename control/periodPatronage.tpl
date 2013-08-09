@@ -33,7 +33,6 @@ function adjustPatronageHeaders(fieldInfo){
       $("#" + e).remove()
     }
   })
-
 }
 function loadMemberPatronage(memberPatronage, fieldInfo){
   $("#patronage").empty()

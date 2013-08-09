@@ -5,14 +5,16 @@
 document.write('<script type="text/javascript" src="' + ('https:'==document.location.protocol?'https://':'http://c.') + 'jslogger.com/jslogger.js"><\/script>');
 </script>
 <script type="text/javascript">
-window.jslogger = new JSLogger({apiKey: "51fb259e1c07bf2772000018", track:true});
+window.jslogger = new JSLogger({apiKey: "5202804a4d1c96595a000025", track:true});
 </script>
-<link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.min.css" rel="stylesheet" media="screen"/>
+
+<link href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/css/bootstrap.min.css" rel="stylesheet" media="screen"/>
+<link href="//cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.1.3/css/bootstrap-datepicker.min.css" rel="stylesheet"/>
 <script src="//code.jquery.com/jquery.js"></script>
 <script src="//malsup.github.io/jquery.form.js"> </script> 
-<script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/css/bootstrap.min.css"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.1.3/js/bootstrap-datepicker.min.js"></script>
 <script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js"></script>
-<script src="https://raw.github.com/eternicode/bootstrap-datepicker/master/js/bootstrap-datepicker.js"></script> 
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-url-parser/2.3.1/purl.min.js"></script>
 <script>
 
@@ -58,6 +60,21 @@ function qualityPicker(id){
    $(id).append(sprintf("<option value='%s'>%s</option>",lev.value, lev.name))
   })
 }
+var actionTypes = 
+    [{label:"Buy In", value:"BuyIn"}, 
+     {label:"Allocate Patronage Rebate", value:"AllocatePatronageRebate"},
+     {label:"Distribute Installment", value:"DistributeInstallment"},
+     {label:"Earn Interest", value:"EarnInterest"},
+     {label:"Distribute on Departure", value:"DistributeOnDeparture"},
+     {label:"Distribute on Dissolution", value:"DistributeOnDissolution"},
+     {label:"Distribute Milestone", value:"DistributeMilestone"},
+     {label:"Allocate Delayed Non Qualified", value:"AllocateDelayedNonQualified"}]
+function actionTypePicker(id){
+  actionTypes.forEach(function(typ){
+    $(id).append(sprintf("<option value='%s'>%s</option>",typ.value, typ.label))
+  })
+}
+  
 var allocMethodFields = 
   ["work", "skillWeightedWork", "seniority", "quality", "revenueGenerated"]
 function redirect(to){ window.location.href = to; }

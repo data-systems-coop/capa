@@ -162,3 +162,7 @@ alter table Cooperative
 alter table Cooperative rename column usgaeEnd to usageEnd;
 
 
+--changeset kazimi:finres-fk-hack context:prod
+alter table MemberEquityAction drop constraint memberequityaction_cpid_fkey;
+
+

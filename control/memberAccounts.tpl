@@ -3,45 +3,49 @@
 <script>$(document).ready(function(){setupForm() })</script>
 <script>
 function setupForm(){
-  //load map of member,acctType -> acctId 
-  // on person change ... reload
-  // on account type change ... reload
-  // trigger reload
-  reloadActions(1,2) 
+  var memAcctMap = new Object()
+  $("#member").change(function(sel){
+    var accts = memAcctMap[sel]
+    $("#acct").empty()
+    accts.forEach(function(a){
+      $("#acct").append(sprintf("<option value='%s'>%s</option>", a.ida, a.accountType))
+    })
+    $("#acct").change()
+  })
+  $("#acct").change(function(){
+    reloadActions($("#member").val(), $("#acct").val())
+  })
+  $.getJSON("/members/equity/accounts", function(memAccts){
+    memAccts.forEach(function(el){
+      var mem = el[0]
+      var accts = el[1]
+      memAcctMap[mem] = accts
+    })
+    var members = $.map(memAccts, function(el){ return el[0] })
+    members.forEach(function(m){
+         $("#member").append(
+            sprintf("<option value='%s'>%s</option>", m.memberId, m.firstName))})
+    $("#member").change()
+  })
 }
 </script>
 
-<!-- switch to drop down --> 
+<form method="GET" action="/control/member/account/action/add">
 <div class="row">
-<div class="span8">
-<div class="pagination">
-<ul>
-  <li><a href="#"><i class="icon-backward"/></a></li>
-  <li><a href="#">Kanishka Azimi</a></li>
-  <li class="active"><a href="#">Aaron Desrochers</a></li>
-  <li><a href="#"><i class="icon-forward"/></a></li>
-</ul>
-</div>
+<div class="span3">
+<select name="member" id="member"></select>
 </div>
 </div>
 
 <div class="row">
-<div class="span5">
-<label class="radio inline">
-  <input type="radio" 
-     name="accountTypeOptions" id="accountTypeRadio1" value="" checked>
-      Rolling Patronage Account</label>
-<label class="radio inline">
-  <input type="radio" 
-     name="accountTypeOptions" id="accountTypeRadio1" value="" checked>
-      Committed Account</label>
+<div class="span4">
+<select name="acct" id="acct"></select>
 </div>
 </div>
-
 
 <script>
 function reloadActions(mbrId, acctId){
-  //clear rows
+  $("#result").empty()
   $.getJSON(
      sprintf("/member/equity/account/actions?mbrId=%s&acctId=%s",mbrId,acctId),
      function(acns){
@@ -51,11 +55,12 @@ function reloadActions(mbrId, acctId){
 function loadAction(a){
   var act = a[0]
   var res = a[1]
+  var resFmtd = (res == null) ? "" : formatFiscalPeriod(res)
   var bal = a[2]
   $("#result").append(
     sprintf("<tr><td>%s</td><td>%s</td><td>$%s</td><td>%s</td><td>$%s</td></tr>", 
        formatGregorianDay(act.performedOn), act.actionType, act.amount, 
-       formatFiscalPeriod(res), bal))
+       resFmtd, bal))
 }
 </script>
 <div class="row">
@@ -77,5 +82,6 @@ function loadAction(a){
 <button type="submit" class="btn btn-primary">Add Action</button>
 </div>
 </div>
+</form>
 
 </apply>

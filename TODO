@@ -2,14 +2,15 @@
 -create monitoring(casey), schedule backup(casey)
 -meta: cost estimate/donate/financial health monitor (+ general DSI/project health)
 
--services + forms - (account view,add action,add mem,finish smry+save stngs)
--javascript widgets, final forms(register,stng show) + services 
+-services + forms - (finish save stngs, add mem,finish smry - bal!)
+-final forms(register,stng show) + services 
+-export procedure (mostly done)
 
--export procedure <<<<
 -period picker shift over time
 -login check 
--form validation failures/errors
--conn pool(casey) + performance/memory basic check --------- DONE
+-form validation failures/errors (entry forms)
+-menu, nav flow
+-conn pool<<<(casey) + performance/memory basic check --------- DONE
 
 -automate test w/travis
 -document hosted release, refresh method
@@ -18,11 +19,6 @@
 -document building prod env
 
 notes...
-
-export
-  invoke COPY command with tmp directory
-  zip directory, provide link zip, cron job periodic empty directory
-  capaPatronage.csv, capaActions.csv, capaResults.csv, capaSettings.csv
 
 release/refresh - (config files??)
   dev: 
@@ -100,4 +96,4 @@ FUTURE
 -introduction allocation object, store snapshot of config with it
 -tighter db constraints with checks, uniques
 -meta data for service -> url or remove names
--improve the libraries used
+-improve selection of libraries used

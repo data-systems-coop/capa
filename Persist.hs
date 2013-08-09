@@ -131,6 +131,12 @@ ptrngSaveFor dbCn cpId mbrId
      DB.SqlInteger ql, DB.SqlInteger rvg]
   DB.commit dbCn  
   
+ptrngExportFor :: PG.Connection -> Integer -> String -> IO () 
+ptrngExportFor dbCn cpId file = 
+  void $ 
+    DB.run dbCn ("COPY (select * from Member m inner join WorkPatronage p using (cpId, mbrId) where cpId = " ++ (show cpId) ++ " order by mbrId, (performedOver).prdStart) TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []
+
+
 mbrFromRow :: [DB.SqlValue] -> Member
 mbrFromRow (mbrId:firstName:_) = 
   Member (DB.fromSql firstName) (DB.fromSql mbrId)
@@ -157,19 +163,36 @@ ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) =
     (DB.fromSql revenueGenerated)
     performedOver
 
+acctFrom :: [DB.SqlValue] -> MemberEquityAccount
+acctFrom (acctId:acctType:_) = 
+  MemberEquityAccount (DB.fromSql acctId) (read $ DB.fromSql acctType)
+
+acctGet :: PG.Connection -> Integer -> Integer -> Integer -> IO MemberEquityAccount
+acctGet dbCn cpId mbrId acctId = 
+  (DB.quickQuery dbCn "select acctId, acctType from MemberEquityAccount where (cpId,mbrId,acctId) = (?,?,?)" $ fmap DB.toSql [cpId, mbrId, acctId]) >>= 
+  return . acctFrom . head 
+
+acctGetAll :: PG.Connection -> Integer -> IO (M.Map Member [MemberEquityAccount])
+acctGetAll dbCn cpId = 
+  DB.quickQuery dbCn "select m.mbrId, m.firstName, acctId, acctType from Member m inner join MemberEquityAccount a using (mbrId,cpId) where m.cpId = ?" [DB.toSql cpId] >>=
+  return . M.fromListWith (++) . fmap (\r -> (mbrFromRow r, [acctFrom (drop 2 r)])) 
+  
+prdToSql :: FiscalPeriod -> (DB.SqlValue, DB.SqlValue)
+prdToSql FiscalPeriod{start=GregorianMonth yr mo, periodType = prdType} = 
+  (DB.toSql $ fromGregorian yr mo 1, DB.toSql $ show prdType)
+
 acnSaveFor :: 
-  PG.Connection -> Integer -> Integer -> Integer -> FiscalPeriod -> MemberEquityAction 
-  -> IO ()
+  PG.Connection -> Integer -> Integer -> Integer -> Maybe FiscalPeriod 
+  -> MemberEquityAction -> IO ()
 acnSaveFor 
-  dbCn cpId mbrId acctId resultOf
+  dbCn cpId mbrId acctId resultOf 
   MemberEquityAction{actionType=tp,amount=amt,performedOn=prf} = do 
-    let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = resultOf
-    let prdStartDay = fromGregorian yr mo 1
+    let (prdStartDay, prdType) = maybe (DB.SqlNull, DB.SqlNull) prdToSql resultOf
     DB.run dbCn 
       "insert into MemberEquityAction values(?,?,?,?,?,?,(?,?))"
       [DB.SqlInteger cpId, DB.SqlInteger mbrId, DB.SqlInteger acctId, 
        DB.SqlString $ show tp, DB.SqlInteger amt, DB.SqlLocalDate prf,
-       DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
+       prdStartDay, prdType]
     DB.commit dbCn
     
 acnSaveToRolling :: 
@@ -180,7 +203,7 @@ acnSaveToRolling dbCn cpId mbrId resultOf acn = do
       DB.quickQuery dbCn "select acctId from MemberEquityAccount where (cpId,mbrId,acctType) = (?,?,?)" 
         [DB.SqlInteger cpId, DB.SqlInteger mbrId, DB.SqlString $ show RollingPatronage]
     let rollingAcctId = DB.fromSql acctId
-    acnSaveFor dbCn cpId mbrId rollingAcctId resultOf acn
+    acnSaveFor dbCn cpId mbrId rollingAcctId (Just resultOf) acn
     
 acnFrom :: [DB.SqlValue] -> MemberEquityAction 
 acnFrom (acnType:amnt:perfOn:_) = 
@@ -203,6 +226,11 @@ acnGetFor dbCn cpId mbrId acctId = do
           (acnFrom r, 
            if (r !! 3) == DB.SqlNull then Nothing else Just $ prdFrom $ drop 3 r))
   
+acnExportFor :: PG.Connection -> Integer -> String -> IO () 
+acnExportFor dbCn cpId file = 
+  void $ 
+    DB.run dbCn ("COPY (select * from Member m inner join MemberEquityAccount a using (cpId, mbrId) inner join MemberEquityAction c using (cpId,mbrId,acctId) where cpId = " ++ (show cpId) ++ " order by mbrId, acctId, performedOn) TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []
+
 allocStngGet :: PG.Connection -> Integer -> IO (AllocationMethod, PatronageWeights) 
 allocStngGet dbCn cpId = do 
   (res:_) <- 

@@ -10,7 +10,8 @@ import Serialize
 import System.Log.Logger
 
 import Happstack.Lite 
-  (ok, path, dir, Response(..), ServerPart(..), ToMessage(..), lookBS, lookCookieValue) 
+  (ok, path, dir, Response(..), ServerPart(..), ToMessage(..), lookBS, lookCookieValue,
+   toResponseBS) 
 import qualified Data.Maybe as MB
 import qualified Data.List as L            
 import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
@@ -20,6 +21,7 @@ import Data.Aeson (encode, decode)
 import Data.Acid.Advanced   ( query', update' )
 import Control.Monad.IO.Class (liftIO)  -- debug
 import qualified Data.ByteString.Lazy.Char8 as LB 
+import qualified Data.ByteString.Char8 as CB 
 
 import qualified Database.HDBC.PostgreSQL as PG -- remove me
 
@@ -27,6 +29,8 @@ import Control.Monad(guard)
 
 import System.Log.Logger as LG
 import Text.Printf(printf)
+
+import qualified Codec.Archive.Zip as ZP
 
 -- MEDIUM
 -- for provided year, provide 2 years back and forward
@@ -250,7 +254,7 @@ postScheduleAllocateDisbursal ref dbCn =
      disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId
      ok $ toResponse $ 
        JSONData $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
-                          
+
 handleAllocateToMembers 
   :: PersistConnection -> PG.Connection -> 
      ServerPart (FiscalPeriod, (M.Map Member MemberEquityAction))
@@ -295,24 +299,50 @@ getActionsForMemberEquityAcct ref dbCn = do
   let acnBals = runningBalance acns
   ok $ toResponse $ JSONData $ reverse $ zipWith (\(a,b) c -> (a,c,b)) acnBals rstOfs
   
--- EASY --
--- getAllMemberEquityAccounts        
+--probably not necessary, just one mem at a time, merge with below
+getAllMembersEquityAccounts :: PersistConnection -> PG.Connection -> ServerPartR
+getAllMembersEquityAccounts ref dbCn = do 
+  cpId <- getSessionCoopId ref
+  (liftIO $ acctGetAll dbCn cpId) >>=
+    ok . toResponse . JSONData . M.toList 
 
--- EASY 
-putEquityAction :: PersistConnection -> ServerPartR
-putEquityAction ref = do
+getMemberEquityAccount :: PersistConnection -> PG.Connection -> ServerPartR
+getMemberEquityAccount ref dbCn = do
+  cpId <- getSessionCoopId ref
+  mbrId <- lookRead "mbrId"
+  acctId <- lookRead "acctId"
+  (liftIO $ acctGet dbCn cpId mbrId acctId) >>=
+    ok . toResponse . JSONData
+
+putEquityAction :: PersistConnection -> PG.Connection -> ServerPartR
+putEquityAction ref dbCn = do
   cpId <- getSessionCoopId ref  
-  --member? --acctId?
+  mbrId <- lookRead "mbrId"
+  acctId <- lookRead "acctId"
   actionType <- lookRead "actionType"
   amount <- lookRead "amount"
-  performedOnStr <- lookBS "performedOn"
-  let Just performedOn = decode performedOnStr
-  let act = MemberEquityAction{actionType=actionType,amount=amount,
+  performedOnStr <- lookString "performedOn"
+  let Just performedOn = parseJSDate performedOnStr
+  overStr <- lookBS "resultOf"
+  let overVal = decode overStr
+  let acn = MemberEquityAction{actionType=actionType,amount=amount,
   	       performedOn=performedOn}
-  -- db save here
+  liftIO $ acnSaveFor dbCn cpId mbrId acctId overVal acn 
   ok $ toResponse ()
 
-
+exportAll :: PersistConnection -> PG.Connection -> ServerPartR
+exportAll ref dbCn = do
+  cpId <- getSessionCoopId ref
+  -- make dir with id + add universal permisions
+  liftIO $ acnExportFor dbCn cpId "/tmp/101/capaActions.csv" -- capaActions-.csv
+  liftIO $ ptrngExportFor dbCn cpId "/tmp/101/capaPatronage.csv" -- capaActions-.csv
+  -- res
+  -- settings + list -> string for disbursals
+  arch <- liftIO $ ZP.addFilesToArchive [ZP.OptRecursive] ZP.emptyArchive ["/tmp/101"] 
+  -- delete directory
+  -- ZP.fromArchive arch 
+  -- stream zip fiel back??
+  ok $ toResponseBS (CB.pack "application/zip") $ ZP.fromArchive arch
 
 --util--
 getSessionCoopId :: PersistConnection -> ServerPart Integer

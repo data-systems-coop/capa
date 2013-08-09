@@ -74,7 +74,7 @@ resolveCoop authUriBase dbCn ref = do
   let AT.Success ident = (AT.parse (A..: "identifier") pf)::AT.Result String
   -- auto resolve cp id by query
   Cooperative{username=user} <- liftIO $ coopGet dbCn 1
-  let redir = if user == ident then "/control/financial/results" else "/control/enter"
+  let redir = if user == ident then "/control/coop/summary" else "/control/enter"
   (if (user == ident) then do
       liftIO $ LG.infoM "resolveCoop" $ printf "%s resolved for %s" user ("c1"::String)
       utcNow <- liftIO CK.getCurrentTime
@@ -108,13 +108,13 @@ capaApp ref conn resolveCoopCtrl hState = msum [
                 templateResponse "setDefaultDisbursalSchedule" hState] ]
              -- view all
        , dir "member" $ msum [
-            dir "accounts" $ templateResponse "memberAccounts" hState
-          , dir "account" $ dir "action" $ dir "add" $ 
+            dir "account" $ dir "action" $ dir "add" $ 
               templateResponse "addAction" hState
           , dir "patronage" $ dir "record" $ 
               templateResponse "recordPatronage" hState ]
        , dir "members" $ msum [
-             dir "patronage" $ dir "period" $ templateResponse "periodPatronage" hState
+             dir "accounts" $ templateResponse "memberAccounts" hState
+           , dir "patronage" $ dir "period" $ templateResponse "periodPatronage" hState
            , dir "add" $ templateResponse "newMember" hState ]
        , dir "financial" $ dir "results" $ msum [
              templateResponse "financialResults" hState
@@ -123,13 +123,16 @@ capaApp ref conn resolveCoopCtrl hState = msum [
             dir "members"  $ dir "allocationsDisbursals" $ 
               templateResponse "allocationsDisbursals" hState ] 
        , dir "enter" $ templateResponse "enter" hState 
-       , dir "login" $ dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl]
+       , dir "login" $ dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl
+       , dir "export" $ templateResponse "export" hState]
   
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
        method GET >> getAllFinancialResultsDetail ref conn
      , method POST >> putFinancialResults ref conn]
   , dir "members" $ msum [
         nullDir >> method GET >> getMembers ref conn
+      , dir "equity" $ dir "accounts" $ 
+          method GET >> getAllMembersEquityAccounts ref conn
       , dir "patronage" $ method GET >> getAllMemberPatronage ref conn]
   , dir "member" $ msum [ 
          method POST >> putMember ref
@@ -137,16 +140,18 @@ capaApp ref conn resolveCoopCtrl hState = msum [
        , method POST >> putMemberPatronage ref conn
        , dir "equity" $ msum [
            dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref conn
-         , dir "history" $ method POST >> putEquityAction ref 
+         , dir "history" $ method POST >> putEquityAction ref conn
          , dir "account" $ msum [
-              dir "actions" $ method GET >> getActionsForMemberEquityAcct ref conn] ] ]
+                nullDir >> method GET >> getMemberEquityAccount ref conn
+              , dir "actions" $ 
+                  method GET >> getActionsForMemberEquityAcct ref conn] ] ]
   , dir "equity" $ msum [
        dir "members" $ msum [
          dir "allocate" $ msum [
              dir "generate" $ method POST >> postAllocateToMembers ref conn 
            , dir "save" $ method POST >> postAllocationDisbursal ref conn] ] ]
   , dir "coop" $ msum [
-       method GET >> getCooperative ref conn  
+       nullDir >> method GET >> getCooperative ref conn  
      , dir "settings" $ msum [
           dir "allocate" $ msum [ 
                method POST >> putCoopAllocateSettings ref conn
@@ -155,7 +160,8 @@ capaApp ref conn resolveCoopCtrl hState = msum [
                  method GET >> getSeniorityMappings ref conn] 
         , dir "disburse" $ dir "schedule" $ dir "default" $  
                  method POST >> putDefaultDisbursalSchedule ref conn] ]
-  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref conn]
+  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref conn
+  , dir "export.zip" $ method GET >> exportAll ref conn]
                      
 main = do
   s <- SYS.openlog "capa" [] SYS.USER LG.DEBUG

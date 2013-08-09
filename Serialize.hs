@@ -34,6 +34,10 @@ instance ToJSON WorkPatronage where
 		 "revenueGenerated" .= revenueGenerated, 
 		 "performedOver" .= AG.toJSON prf]
 
+instance ToJSON MemberEquityAccount where
+  toJSON MemberEquityAccount{ida=ida,accountType=typ} = 
+    object ["ida" .= ida, "accountType" .= AG.toJSON typ]
+
 instance ToJSON MemberEquityAction where
   toJSON MemberEquityAction{actionType=act,amount=amt,performedOn=prf} = 
   	 object ["actionType" .= AG.toJSON act, 
@@ -105,3 +109,8 @@ instance FromJSON SeniorityMappingEntry where
 instance FromJSON GregorianDuration where 
   parseJSON (Object v) = GregorianDuration <$> v .: "years" <*> v .: "months"
   
+parseJSDate :: String -> Maybe Day
+parseJSDate str = 
+  let (m,_:rs) = break (=='/') str
+      (d,_:y) = break (=='/') rs
+  in Just $ fromGregorian (read y) (read m) (read d)
