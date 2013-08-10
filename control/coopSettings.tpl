@@ -10,54 +10,82 @@ $(document).ready(function() {
 
 <script>
 function setupForm(){
+  // get alloc methods..
+  $.getJSON("/allocate/methods", function(ms){
+    $.each(ms, function(i, m){
+      $("#allocMethods").append(
+       sprintf("<label class='radio inline'>" + 
+               "<input type='radio' name='allocationMethod' value='%s'>%s</label>", 
+               m, m))
+     })
+   $("input[name='allocationMethod']").change(function(){
+    $.getJSON("/allocate/method/" + $("input[name='allocationMethod']:checked").val(), 
+      function(fieldInfo){
+        allocMethodFields.forEach(function(e){
+         if(!fieldInfo.some(function(f){return f.ptrngFldLabel == e})){
+           $("." + e).hide()
+          }else{
+           $("." + e).show()
+          }
+        })
+      })
+   })
+   $("input[value='ProductiveHours']").prop('checked',true)
+   $("input[name='allocationMethod']").change()
+  })
   loadSeniorityLevels([{"start":0,"end":2},{"start":3,"end":5}])
   setupAddLevel()
-  $('#updateForm').ajaxForm({
+  $('form').ajaxForm({
        success: function(){
 	 window.location.href = sprintf("/control/financial/results")
        }
     })
 }
 </script>
-<form id="updateForm" method="POST" action="/coop/settings/allocate"> 
+<form method="POST" action="/coop/settings/allocate"> 
 <div class="row">
-    <div class="span5" id="add">
-	  <label class="radio inline">
-	    <input type="radio" name='allocationMethod' id="allocationMethod1" value="ProductiveHours" checked>Productive Hours
-	  </label>
-	  <label class="radio inline">
-	    <input type="radio" name='allocationMethod' id="allocationMethod1" value="Wages">Wages
-	  </label>
-
+    <div class="span8" id="add">
+          <div id="allocMethods"></div>
+          
+          <div class="work">
 	  <label for="workw">Productive Hours Weight</label>
 	  <div class="input-append">
 	    <input type="text" class="input-mini" name='workw' id="workw">
 	    <span class="add-on">%</span>
 	  </div>
+          </div>
 
+          <div class="skillWeightedWork">
 	  <label for="skillWeightedWorkw">Wages Weight</label>
 	  <div class="input-append">
 	    <input type="text" class="input-mini" name='skillWeightedWorkw' id="skillWeightedWorkw">
 	    <span class="add-on">%</span>
 	  </div>
+          </div>
 
-	  <label for="seniorityWeight">Seniotity Weight</label>
+          <div class="seniority">
+	  <label for="seniorityw">Seniotity Weight</label>
 	  <div class="input-append">
 	    <input type="text" class="input-mini" name='seniorityw' id="seniorityw">
 	    <span class="add-on">%</span>
 	  </div>
+          </div>
 
+          <div class="revenueGenerated">
 	  <label for="workw">Revenue Generated Weight</label>
 	  <div class="input-append">
 	    <input type="text" class="input-mini" name='revenueGeneratedw' id="revenueGeneratedw">
 	    <span class="add-on">%</span>
 	  </div>
+          </div>
 
+          <div class="quality">
 	  <label for="workw">Quality Weight</label>
 	  <div class="input-append">
 	    <input type="text" class="input-mini" name='qualityw' id="qualityw">
 	    <span class="add-on">%</span>
 	  </div>
+          </div>
     </div>
 </div>
 	  <script>
@@ -76,6 +104,8 @@ function setupForm(){
 	    $("#seniorityLevels").val(JSON.stringify($("#seniorityLevelRows").data("d")))
 	  }
 	  </script>  
+
+<div class="seniority">
 <div class="row">
   <div class="span3">
 	  <label>Seniority Levels</label>
@@ -91,6 +121,8 @@ function setupForm(){
 	  <button type="button" class="btn btn-small" data-toggle="modal" data-target="#addModal">Add Level</button>
     </div>
 </div>	  
+</div>
+
 <div class="row">
     <div class="span5">
 	  <div class="form-actions">

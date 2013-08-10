@@ -50,6 +50,13 @@ coopGet dbCn cpId = do
     "select cpId, cpName, username, usageStart, usageEnd, (fiscalCalendarType).start, (fiscalCalendarType).prdType from Cooperative where cpId = ?" [DB.toSql cpId]
   return $ coopFromRow row
 
+coopSave :: PG.Connection -> Cooperative -> IO ()
+coopSave dbCn Cooperative{name=nm,username=usr,usageStart=st,fiscalCalendarType=clTp}=
+  do 
+   let FiscalCalendarType{startf=fst,periodTypef=typ} = clTp
+   DB.run dbCn "insert into Cooperative values (select max(cpId)+1 from Cooeprative,?,?,?,(?,?))" [DB.toSql nm, DB.toSql usr, DB.toSql st, DB.toSql fst, DB.toSql $ show typ] 
+   DB.commit dbCn
+   
 rsltGetAll :: PG.Connection -> Integer -> IO [FinancialResults]
 rsltGetAll dbCn cpId = do
   DB.quickQuery dbCn 
@@ -99,13 +106,19 @@ rsltUpdateAllocated dbCn cpId over allocatedOn = do
         DB.SqlString $ show prdType]
     DB.commit dbCn
 
+rsltExportFor :: PG.Connection -> Integer -> String -> IO () 
+rsltExportFor dbCn cpId file = 
+  void $ 
+    DB.run dbCn ("COPY (select * from FinancialResults  where cpId = " ++ (show cpId) ++ " order by (rsltOver).prdStart) TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []
+
+
 ptrngGetFor 
   :: PG.Connection -> Integer -> FiscalPeriod -> IO (M.Map Member (Maybe WorkPatronage))
 ptrngGetFor dbCn cpId performedOver = do 
   let FiscalPeriod{start=GregorianMonth yr mo, periodType=prdType} = performedOver
   let prdStartDay = fromGregorian yr mo 1
   res <- DB.quickQuery dbCn
-    "select m.mbrId, m.firstName, p.work, p.skillWeightedWork, p.quality, p.revenueGenerated, p.performedOver from Member m left outer join (select * from WorkPatronage where (performedOver).prdStart = ? and (performedOver).prdType = ?) p using (cpId,mbrId) where cpId = ?"
+    "select m.mbrId, m.firstName, m.lastName, m.acceptedOn, p.work, p.skillWeightedWork, p.quality, p.revenueGenerated, p.performedOver from Member m left outer join (select * from WorkPatronage where (performedOver).prdStart = ? and (performedOver).prdType = ?) p using (cpId,mbrId) where cpId = ?"
     [DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType, DB.SqlInteger cpId]
   let ms = fmap mbrFromRow res
   let ps = 
@@ -138,20 +151,27 @@ ptrngExportFor dbCn cpId file =
 
 
 mbrFromRow :: [DB.SqlValue] -> Member
-mbrFromRow (mbrId:firstName:_) = 
-  Member (DB.fromSql firstName) (DB.fromSql mbrId)
+mbrFromRow (mbrId:firstName:lastName:acceptedOn:_) = 
+  Member (DB.fromSql firstName) (DB.fromSql lastName) (DB.fromSql mbrId)
+    (DB.fromSql acceptedOn)
   
-mbrGetAll :: PG.Connection -> Integer -> IO [(Member,Money)]
-mbrGetAll dbCn cpId = do
-  (DB.quickQuery dbCn "select mbrId,firstName, coalesce((select sum(amount) from MemberEquityAction where (cpId,mbrId) = (a.cpId,a.mbrId)),0) as total from member a where cpId=?"
-     [DB.SqlInteger cpId]) >>= 
-    return . fmap (\r -> (mbrFromRow r,DB.fromSql $ r !! 2))
+mbrGetAll :: PG.Connection -> Integer -> Day -> IO [(Member,Money)]
+mbrGetAll dbCn cpId asOf = do
+  (DB.quickQuery dbCn "select mbrId,firstName,lastName,acceptedOn, coalesce((select sum(amount) from MemberEquityAction where (cpId,mbrId) = (a.cpId,a.mbrId) and performedOn <= ?),0) as total from member a where cpId=?"
+     [DB.toSql asOf, DB.toSql cpId]) >>= 
+    return . fmap (\r -> (mbrFromRow r,DB.fromSql $ r !! 4))
 
 mbrGet :: PG.Connection -> Integer -> Integer -> IO (Maybe Member)
 mbrGet dbCn cpId mbrId = 
-  DB.quickQuery dbCn "select mbrId,firstName from member where (cpId,mbrId)=(?,?)"
+  DB.quickQuery dbCn "select mbrId,firstName,lastName,acceptedOn from member where (cpId,mbrId)=(?,?)"
     [DB.SqlInteger cpId, DB.SqlInteger mbrId] >>= 
   return . fmap mbrFromRow . MB.listToMaybe
+
+mbrSave :: PG.Connection -> Integer -> Member -> IO ()
+mbrSave dbCn cpId Member{firstName=first,lastName=last,acceptedOn=acc}=do
+  DB.run dbCn "insert into Member values (?,(select max(mbrId)+1 from Member where cpId=?),?,?,?)" 
+    [DB.toSql cpId, DB.toSql cpId, DB.toSql first, DB.toSql last, DB.toSql acc]
+  DB.commit dbCn
 
 ptrngFromRow :: FiscalPeriod -> [DB.SqlValue] -> WorkPatronage
 ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) = 
@@ -174,7 +194,7 @@ acctGet dbCn cpId mbrId acctId =
 
 acctGetAll :: PG.Connection -> Integer -> IO (M.Map Member [MemberEquityAccount])
 acctGetAll dbCn cpId = 
-  DB.quickQuery dbCn "select m.mbrId, m.firstName, acctId, acctType from Member m inner join MemberEquityAccount a using (mbrId,cpId) where m.cpId = ?" [DB.toSql cpId] >>=
+  DB.quickQuery dbCn "select m.mbrId, m.firstName, m.lastName, m.acceptedOn, acctId, acctType from Member m inner join MemberEquityAccount a using (mbrId,cpId) where m.cpId = ?" [DB.toSql cpId] >>=
   return . M.fromListWith (++) . fmap (\r -> (mbrFromRow r, [acctFrom (drop 2 r)])) 
   
 prdToSql :: FiscalPeriod -> (DB.SqlValue, DB.SqlValue)
@@ -261,6 +281,12 @@ allocStngSaveFor dbCn cpId allocMethod
      toSqlDouble workw, toSqlDouble skillWeightedWorkw, toSqlDouble seniorityw,
      toSqlDouble qualityw, toSqlDouble revenueGeneratedw]
   DB.commit dbCn
+
+stngExportFor :: PG.Connection -> Integer -> String -> IO () 
+stngExportFor dbCn cpId file = 
+  void $ --snrty levls eventually
+    DB.run dbCn ("COPY (select *, (select string_agg( (afterAllocation).years || 'yrs' || (afterAllocation).months || 'mos' || ' ' || proportion*100 || '%', ',') from DisbursalSchedule where cpId = " ++ (show cpId) ++ ") as disbursalScheduleList from Cooperative inner join CoopSettings using (cpId) where cpId = " ++ (show cpId) ++ ") TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []
+
 
 snrtyMpngsSaveFor :: 
   PG.Connection -> Integer -> SeniorityMappings -> IO ()

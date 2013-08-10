@@ -1,7 +1,7 @@
 module Utils 
 where
 
-import Happstack.Lite(ServerPart, ToMessage(..), lookText, Response(..))
+import Happstack.Lite(ServerPart, ToMessage(..), lookText, Response(..), ok)
 import Data.Aeson(ToJSON, encode)
 import Numeric (readFloat)  -- num util
 import qualified Data.ByteString.Char8 as B  -- + templates
@@ -25,3 +25,5 @@ instance ToJSON a => ToMessage (JSONData a) where
 type SessionID = String
 type ServerPartR = ServerPart Response
 
+okJSResp :: ToJSON a => a -> ServerPartR
+okJSResp = ok . toResponse . JSONData

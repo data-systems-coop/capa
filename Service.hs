@@ -19,7 +19,7 @@ import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
 import Data.Map as M
 import Data.Aeson (encode, decode)
 import Data.Acid.Advanced   ( query', update' )
-import Control.Monad.IO.Class (liftIO)  -- debug
+import Control.Monad.IO.Class (liftIO)  
 import qualified Data.ByteString.Lazy.Char8 as LB 
 import qualified Data.ByteString.Char8 as CB 
 
@@ -31,6 +31,9 @@ import System.Log.Logger as LG
 import Text.Printf(printf)
 
 import qualified Codec.Archive.Zip as ZP
+import qualified System.Posix.Directory as DR
+import qualified System.Posix.Files as FL
+import qualified System.Process as SP
 
 -- MEDIUM
 -- for provided year, provide 2 years back and forward
@@ -51,16 +54,20 @@ getLatestFiscalPeriods ref dbCn = do
         fmap 
           ((\(yr,mo,_) -> FiscalPeriod (GregorianMonth yr mo) pt) . toGregorian)
           (take 10 $ enumStarts end)
-  ok $ toResponse $ JSONData periods
+  okJSResp periods
 
 getCooperative :: PersistConnection -> PG.Connection -> ServerPartR
 getCooperative ref dbCn = do
   cpId <- getSessionCoopId ref
-  (liftIO $ coopGet dbCn cpId) >>= 
-    ok . toResponse . JSONData 
+  (liftIO $ coopGet dbCn cpId) >>= okJSResp
 
 -- EASY 
--- putCooperative :: PersistentConnection -> ServerPartR
+putCooperative :: PersistConnection -> PG.Connection -> ServerPartR
+putCooperative ref dbCn = do
+  coop <- parseObject  
+  liftIO $ coopSave dbCn coop
+  -- store session for user
+  okJSResp ()
 
 -- getDefaultDisbursalSchedule (not rush)
 
@@ -70,14 +77,12 @@ putDefaultDisbursalSchedule ref dbCn = do
   defaultDisbSchedStr <- lookBS "disbursalSchedule"
   let Just defaultDisbSched = 
         (decode defaultDisbSchedStr)::Maybe DisbursalSchedule
-  liftIO $ dsbSchedSaveFor dbCn cpId defaultDisbSched
-  ok $ toResponse ()
+  (liftIO $ dsbSchedSaveFor dbCn cpId defaultDisbSched) >>= okJSResp
 
 getSeniorityMappings :: PersistConnection -> PG.Connection -> ServerPartR
 getSeniorityMappings ref dbCn = do
   cpId <- getSessionCoopId ref
-  (liftIO $ snrtyMpngsGet dbCn cpId) >>= 
-    ok . toResponse . JSONData . M.toList
+  (liftIO $ snrtyMpngsGet dbCn cpId) >>= okJSResp
 
 putCoopAllocateSettings :: PersistConnection -> PG.Connection -> ServerPartR
 putCoopAllocateSettings ref dbCn = do 
@@ -85,25 +90,14 @@ putCoopAllocateSettings ref dbCn = do
       allocMethod <- lookRead "allocationMethod" 
       pw <- lookPatronageWeights allocMethod
       sm <- lookSeniorityMappings allocMethod
-      liftIO $ saveCoopAllocateSettings dbCn cpId allocMethod pw sm
-      ok $ toResponse ()
+      (liftIO $ saveCoopAllocateSettings dbCn cpId allocMethod pw sm) >>= okJSResp
 
 getAllocMethodDetail :: PersistConnection -> PG.Connection -> ServerPartR
 getAllocMethodDetail ref dbCn = do
   cpId <- getSessionCoopId ref
-  (method, _) <- liftIO $ allocStngGet dbCn cpId 
-  let fieldDetails = 
-       case method of 
-        ProductiveHours -> [workFieldDetail]
-        Wages -> [skillWeightedWorkFieldDetail]
-        SimpleMix -> [workFieldDetail, skillWeightedWorkFieldDetail]
-        SeniorityMix -> 
-          [workFieldDetail, skillWeightedWorkFieldDetail, seniorityFieldDetail]
-        ElaborateMix -> 
-          [workFieldDetail, skillWeightedWorkFieldDetail, seniorityFieldDetail,
-           qualityFieldDetail, revenueGeneratedFieldDetail]
-  ok $ toResponse $ JSONData fieldDetails
-      
+  (liftIO $ allocStngGet dbCn cpId) >>= (okJSResp . fieldDetails . fst)
+
+
 saveCoopAllocateSettings :: 
   PG.Connection -> Integer -> AllocationMethod -> PatronageWeights -> 
     Maybe SeniorityMappings
@@ -125,6 +119,19 @@ lookSeniorityMappings method
       snrtyLvlsStr <- lookBS "seniorityLevels"
       let Just snrtyLvls = (decode snrtyLvlsStr)::Maybe [SeniorityMappingEntry]
       return $ Just $ M.fromList $ zip snrtyLvls [1 .. toInteger (length snrtyLvls)]
+      
+allocMethods :: [AllocationMethod]
+allocMethods = [ProductiveHours, Wages, SimpleMix] --, SeniorityMix], ElaborateMix]
+
+fieldDetails :: AllocationMethod -> [PatronageFieldDetail]
+fieldDetails ProductiveHours =  [workFieldDetail]
+fieldDetails Wages = [skillWeightedWorkFieldDetail]
+fieldDetails SimpleMix = [workFieldDetail, skillWeightedWorkFieldDetail]
+fieldDetails SeniorityMix = 
+  [workFieldDetail, skillWeightedWorkFieldDetail, seniorityFieldDetail]
+fieldDetails ElaborateMix = 
+  [workFieldDetail, skillWeightedWorkFieldDetail, seniorityFieldDetail,
+   qualityFieldDetail, revenueGeneratedFieldDetail]
 
 lookPatronageWeights :: AllocationMethod -> ServerPart PatronageWeights
 lookPatronageWeights method = do
@@ -137,14 +144,14 @@ lookPatronageWeights method = do
      	        seniorityw = 0, qualityw = 0, 
 		revenueGeneratedw = 0}
     Wages -> do
-      skillWeightedWorkw <- lookRead "skillWeightedWorkw"
+      skillWeightedWorkw <- lookRational "skillWeightedWorkw"
       return 
         PatronageWeights{workw=0,skillWeightedWorkw=skillWeightedWorkw, 
      	        seniorityw = 0, qualityw = 0, 
 		revenueGeneratedw = 0}
     _ -> do
       workw <- lookRational "workw"
-      skillWeightedWorkw <- lookRead "skillWeightedWorkw"
+      skillWeightedWorkw <- lookRational "skillWeightedWorkw"
       case method of 
         SimpleMix -> 
           return 
@@ -190,8 +197,7 @@ putMemberPatronage ref dbCn =
 	let Just performedOver = decode $ LB.pack performedOverStr        
         (allocMethod, _) <- liftIO $ allocStngGet dbCn cpId
         lookPatronage allocMethod performedOver >>= 
-          (liftIO . ptrngSaveFor dbCn cpId idIn)
-     	ok $ toResponse ()
+          (liftIO . ptrngSaveFor dbCn cpId idIn) >>= okJSResp
 
 getAllMemberPatronage :: PersistConnection -> PG.Connection -> ServerPartR
 getAllMemberPatronage ref dbCn =
@@ -200,36 +206,30 @@ getAllMemberPatronage ref dbCn =
     let Just fiscalPeriod = decode $ LB.pack fiscalPeriodStr
     mpAll <- liftIO $ ptrngGetFor dbCn cpId fiscalPeriod 
     let (mp, mu) = M.partition MB.isJust mpAll
-    ok $ toResponse $ JSONData $ (M.toList mp, M.keys mu)
+    okJSResp $ (mp, M.keys mu)
 
--- EASY
-putMember :: PersistConnection -> ServerPartR
-putMember ref = do -- get all parameters for member
+putMember :: PersistConnection -> PG.Connection -> ServerPartR
+putMember ref dbCn = do 
   cpId <- getSessionCoopId ref
-  firstName <- lookString "firstName"
-  let member = Member firstName 1
-  -- g <- query' ref GetIt
-  -- let mems = members g
-  -- g2 <- update' ref (PutIt g{members = mems ++ [member]}) -- ignore
-  ok $ toResponse ()
+  parseObject >>= (liftIO . mbrSave dbCn cpId) >>= okJSResp
      
 getMember :: PersistConnection -> PG.Connection -> ServerPartR
-getMember ref dbCn = do 
+getMember ref dbCn =
   path $ \(mid::Integer) -> do
     cpId <- getSessionCoopId ref
-    (liftIO $ mbrGet dbCn cpId mid) >>= (ok . toResponse . JSONData)
+    (liftIO $ mbrGet dbCn cpId mid) >>= okJSResp
 
 getMembers :: PersistConnection -> PG.Connection -> ServerPartR
 getMembers ref dbCn = do 
   cpId <- getSessionCoopId ref
-  (liftIO $ mbrGetAll dbCn cpId) >>= 
-    ok . toResponse . JSONData
+  UTCTime{utctDay=day} <- liftIO getCurrentTime
+  (liftIO $ mbrGetAll dbCn cpId day) >>= okJSResp
 
 getAllFinancialResultsDetail :: PersistConnection -> PG.Connection -> ServerPartR
 getAllFinancialResultsDetail ref dbCn = do 
   cpId <- getSessionCoopId ref
-  res <- liftIO $ rsltGetAll dbCn cpId
-  ok $ toResponse $ JSONData res
+  (liftIO $ rsltGetAll dbCn cpId) >>= okJSResp
+
        
 putFinancialResults :: PersistConnection -> PG.Connection -> ServerPartR
 putFinancialResults ref dbCn = do 
@@ -238,13 +238,11 @@ putFinancialResults ref dbCn = do
   overStr <- lookBS "over"
   let Just over = decode overStr
   let res = FinancialResults over surplus Nothing
-  liftIO $ rsltSaveFor dbCn cpId res
-  ok $ toResponse ()
+  (liftIO $ rsltSaveFor dbCn cpId res) >>= okJSResp
 
 postAllocateToMembers :: PersistConnection -> PG.Connection -> ServerPartR
 postAllocateToMembers ref dbCn = 
-  handleAllocateToMembers ref dbCn
-  >>= ok . toResponse . JSONData . M.toList . snd
+  handleAllocateToMembers ref dbCn >>= okJSResp . snd
 
 postScheduleAllocateDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
 postScheduleAllocateDisbursal ref dbCn = 
@@ -252,8 +250,7 @@ postScheduleAllocateDisbursal ref dbCn =
      allocateActionStr <- lookBS "allocateAction"
      let Just allocateAction = decode allocateActionStr
      disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId
-     ok $ toResponse $ 
-       JSONData $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
+     okJSResp $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
 
 handleAllocateToMembers 
   :: PersistConnection -> PG.Connection -> 
@@ -284,9 +281,8 @@ postAllocationDisbursal ref dbCn =
            (acnSaveToRolling dbCn cpId mbrId allocateOver)
            (scheduleDisbursalsFor allocAcn disbursalSchedule))
        (M.toList me)
-     UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
-     liftIO $ rsltUpdateAllocated dbCn cpId allocateOver day
-     ok $ toResponse ()
+     UTCTime{utctDay=day} <- liftIO getCurrentTime
+     (liftIO $ rsltUpdateAllocated dbCn cpId allocateOver day) >>= okJSResp
         
 
 getActionsForMemberEquityAcct :: PersistConnection -> PG.Connection -> ServerPartR
@@ -297,22 +293,20 @@ getActionsForMemberEquityAcct ref dbCn = do
   all <- liftIO $ acnGetFor dbCn cpId mbrId acctId
   let (acns,rstOfs) = unzip all
   let acnBals = runningBalance acns
-  ok $ toResponse $ JSONData $ reverse $ zipWith (\(a,b) c -> (a,c,b)) acnBals rstOfs
+  okJSResp $ reverse $ zipWith (\(a,b) c -> (a,c,b)) acnBals rstOfs
   
 --probably not necessary, just one mem at a time, merge with below
 getAllMembersEquityAccounts :: PersistConnection -> PG.Connection -> ServerPartR
 getAllMembersEquityAccounts ref dbCn = do 
   cpId <- getSessionCoopId ref
-  (liftIO $ acctGetAll dbCn cpId) >>=
-    ok . toResponse . JSONData . M.toList 
+  (liftIO $ acctGetAll dbCn cpId) >>= okJSResp
 
 getMemberEquityAccount :: PersistConnection -> PG.Connection -> ServerPartR
 getMemberEquityAccount ref dbCn = do
   cpId <- getSessionCoopId ref
   mbrId <- lookRead "mbrId"
   acctId <- lookRead "acctId"
-  (liftIO $ acctGet dbCn cpId mbrId acctId) >>=
-    ok . toResponse . JSONData
+  (liftIO $ acctGet dbCn cpId mbrId acctId) >>= okJSResp
 
 putEquityAction :: PersistConnection -> PG.Connection -> ServerPartR
 putEquityAction ref dbCn = do
@@ -327,21 +321,22 @@ putEquityAction ref dbCn = do
   let overVal = decode overStr
   let acn = MemberEquityAction{actionType=actionType,amount=amount,
   	       performedOn=performedOn}
-  liftIO $ acnSaveFor dbCn cpId mbrId acctId overVal acn 
-  ok $ toResponse ()
+  (liftIO $ acnSaveFor dbCn cpId mbrId acctId overVal acn) >>= okJSResp
+ 
 
 exportAll :: PersistConnection -> PG.Connection -> ServerPartR
 exportAll ref dbCn = do
   cpId <- getSessionCoopId ref
-  -- make dir with id + add universal permisions
-  liftIO $ acnExportFor dbCn cpId "/tmp/101/capaActions.csv" -- capaActions-.csv
-  liftIO $ ptrngExportFor dbCn cpId "/tmp/101/capaPatronage.csv" -- capaActions-.csv
-  -- res
-  -- settings + list -> string for disbursals
-  arch <- liftIO $ ZP.addFilesToArchive [ZP.OptRecursive] ZP.emptyArchive ["/tmp/101"] 
-  -- delete directory
-  -- ZP.fromArchive arch 
-  -- stream zip fiel back??
+  UTCTime{utctDayTime=time1} <- liftIO getCurrentTime
+  let time = show time1
+  liftIO $ DR.createDirectory ("/tmp/" ++ time) FL.accessModes
+  liftIO $ SP.system ("chmod 777 /tmp/" ++ time)
+  liftIO $ acnExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaActions.csv") 
+  liftIO $ ptrngExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaPatronage.csv")
+  liftIO $ rsltExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaResults.csv")
+  liftIO $ stngExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaSettings.csv")
+  arch <- 
+    liftIO $ ZP.addFilesToArchive [ZP.OptRecursive] ZP.emptyArchive [("/tmp/" ++ time)] 
   ok $ toResponseBS (CB.pack "application/zip") $ ZP.fromArchive arch
 
 --util--

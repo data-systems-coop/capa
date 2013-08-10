@@ -54,10 +54,10 @@ data EquityAccountType = Committed | RollingPatronage
 
 data Member = Member { -- mbr
   firstName::String, 
-  --lastName::String
-  memberId::Integer
-  --acceptedOn::Day
-  --leftOn::Day
+  lastName::String,
+  memberId::Integer,
+  acceptedOn::Day
+  --leftOn::Maybe Day
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 data FinancialResults = FinancialResults { -- rslt
@@ -128,7 +128,10 @@ revenueGeneratedFieldDetail = PatronageFieldDetail "revenueGenerated"
 (f1,f2) = 
   (FiscalPeriod (GregorianMonth 2012 1) Year,
    FiscalPeriod (GregorianMonth 2011 1) Year)
-(m1, m2, m3) = (Member "John" 1, Member "Kanishka" 2, Member "Dave" 3)
+(m1, m2, m3) = 
+   (Member "John" "Smith" 1 (fromGregorian 2010 1 1), 
+    Member "Kanishka" "Azimi" 2 (fromGregorian 2011 1 1), 
+    Member "Dave" "Jackson" 3 (fromGregorian 2009 3 30))
 pw1 = PatronageWeights (7%10) (3%10) 0 0 0
 coop1 = (Cooperative 
            1 "Coop1" "https://www.google.com/profiles/102678013619698873278"

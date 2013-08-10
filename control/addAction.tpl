@@ -28,13 +28,13 @@ function setupForm(){
   fiscalPeriodPicker("#resultOf")
   $("#resultOf").prepend("<option value=''>None</option>")
   actionTypePicker("#actionType")
-  $("#performedOn").datepicker({format:'mm/dd/yyyy', autoclose:true})
+  datePickerDflt("#performedOn")
   $('form').ajaxForm({  // nice to have use URL to reload account one came from
        success: function(){
          redirect("/control/members/accounts")
        }
     })
-  $("#cancel").attr("href","/control/members/accounts")
+  $("a:contains('Cancel')").attr("href","/control/members/accounts")
 }
 </script>
 <form method="POST" action="/member/equity/history"> 
@@ -53,7 +53,7 @@ function setupForm(){
 <select name="resultOf" id="resultOf"></select>
 <div class="form-actions">
 <button type="submit" class="btn btn-primary">Save</button>
-<a id="cancel" class="btn">Cancel</a> 
+<a class="btn">Cancel</a> 
 </div>
 </form>
 

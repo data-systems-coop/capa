@@ -9,8 +9,10 @@ import Persist
 import Service
 
 import Happstack.Lite
-   (ok, method, serve, dir, Method(..), nullDir, notFound, ToMessage(..), seeOther,
-    CookieLife(Session), mkCookie, addCookies, expireCookie, lookCookieValue)
+   (ok, method, serve, dir, path, 
+    Method(..), nullDir, notFound, ToMessage(..), seeOther,
+    CookieLife(Session), mkCookie, addCookies, expireCookie, lookCookieValue, 
+    ServerPart)
 import Happstack.Server.Routing (dirs)
 
 import Network.HTTP.Conduit(simpleHttp)
@@ -91,11 +93,7 @@ resolveCoop authUriBase dbCn ref = do
   
 ---------------ENTRY---------------------------------
 capaApp :: 
-  PersistConnection -> 
-  PG.Connection -> 
-  ServerPartR ->
-  TemplateStore -> 
-  ServerPartR
+  PersistConnection -> PG.Connection -> ServerPartR -> TemplateStore -> ServerPartR
 capaApp ref conn resolveCoopCtrl hState = msum [
     --partial path failurs like missing parameter?
     dir "control" $ msum [ --remove control 
@@ -135,7 +133,7 @@ capaApp ref conn resolveCoopCtrl hState = msum [
           method GET >> getAllMembersEquityAccounts ref conn
       , dir "patronage" $ method GET >> getAllMemberPatronage ref conn]
   , dir "member" $ msum [ 
-         method POST >> putMember ref
+         method POST >> putMember ref conn
        , method GET >> getMember ref conn
        , method POST >> putMemberPatronage ref conn
        , dir "equity" $ msum [
@@ -159,10 +157,14 @@ capaApp ref conn resolveCoopCtrl hState = msum [
              , dir "seniority" $ dir "levels" $ 
                  method GET >> getSeniorityMappings ref conn] 
         , dir "disburse" $ dir "schedule" $ dir "default" $  
-                 method POST >> putDefaultDisbursalSchedule ref conn] ]
-  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref conn
+                 method POST >> putDefaultDisbursalSchedule ref conn] ] 
+  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref conn  
+  , dir "allocate" $ msum [
+      dir "method" $ path $ (okJSResp . fieldDetails . read) -- GET
+    , dir "methods" $ method GET >> (okJSResp $ fmap show allocMethods)]
   , dir "export.zip" $ method GET >> exportAll ref conn]
-                     
+
+                                          
 main = do
   s <- SYS.openlog "capa" [] SYS.USER LG.DEBUG
   LG.updateGlobalLogger LG.rootLoggerName (LG.addHandler s . LG.setLevel LG.DEBUG)

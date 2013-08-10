@@ -9,6 +9,6 @@ executable capa
                         blaze-builder, bytestring, time, transformers, 
                         vector, attoparsec, happstack-server, http-conduit, 
                         HDBC, HDBC-postgresql, old-locale, ConfigFile, MissingH,
-                        hslogger, zip-archive
+                        hslogger, zip-archive, unix, process
   hs-source-dirs:	.
-  main-is:		capa.hs
+  main-is:		capa.hsls 

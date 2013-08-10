@@ -166,3 +166,16 @@ alter table Cooperative rename column usgaeEnd to usageEnd;
 alter table MemberEquityAction drop constraint memberequityaction_cpid_fkey;
 
 
+--changeset kazimi:member-expand context:prod
+alter table Member
+      add column lastName varchar(100)
+    , add column acceptedOn date;
+
+update Member
+set lastName = 'unknown'
+  , acceptedOn = '2011-01-01';
+
+alter table Member
+       alter column lastName set not null
+     , alter column acceptedOn set not null
+     , add constraint member_uq UNIQUE (cpId, firstName, lastName, acceptedOn);

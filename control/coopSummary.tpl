@@ -18,13 +18,14 @@ function loadCoop(){
 </script>
 <div class="row">
 <div class="span5">
-<h3><span id="name"/> [<span id="usageDates"/>]</h3>
+<h3><span id="name"/> [<span id="usageDates"/>-Present]</h3>
 </div>
 </div>
 
 
 <script>
 function loadMemberSummary(){
+  $("#now").append((new Date()).toLocaleDateString())
   $.getJSON("/members", function(ms){ $.each(ms, function(i,m){ loadMember(m) }) })
 }
 function loadMember(m){
@@ -32,14 +33,15 @@ function loadMember(m){
   var bal = m[1]
   $("#memberSummary").append(
     sprintf("<tr><td>%s %s</td><td>$%s</td><td>%s</td></tr>",
-             member.firstName, "", bal, ""))
+             member.firstName, member.lastName, bal, 
+             formatGregorianDay(member.acceptedOn)))
 }
 </script>
 <div class="row">
 <div class="span8">
 
 <table class="table">
-<thead><tr><th>Member</th><th>Equity</th><th>Accepted on</th></tr></thead>
+<thead><tr><th>Member</th><th>Equity(<span id="now"/>)</th><th>Accepted on</th></tr></thead>
 <tbody id="memberSummary"></tbody>
 </table>
 

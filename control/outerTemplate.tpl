@@ -19,6 +19,9 @@ window.jslogger = new JSLogger({apiKey: "5202804a4d1c96595a000025", track:true})
 <script>
 
 //library
+function datePickerDflt(id){
+  $(id).datepicker({format:'mm/dd/yyyy',autoclose:true})
+}
 function formatFiscalPeriod(per){
  return ( per.periodType == "Year" ) ? 
    sprintf("FY %s", per.start.year) :

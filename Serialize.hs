@@ -3,15 +3,19 @@ module Serialize
 where
 
 import Types
-  
+import Utils  
+
 import Data.Aeson                         
 import qualified Data.Aeson.Types as AT
 import qualified Data.Aeson.Generic as AG
 import Control.Applicative
 import Data.Attoparsec.Number as AN
 import qualified Data.Vector as V
-import Data.Time (Day, fromGregorian , toGregorian, UTCTime(..)) 
+import Data.Time (Day, fromGregorian , toGregorian, UTCTime(..), getCurrentTime) 
 import qualified Data.Text as DT  
+import qualified Data.Map as M
+import Happstack.Lite(ServerPart)
+import Control.Monad.IO.Class (liftIO)  
 
 instance ToJSON Cooperative where   
   toJSON Cooperative{cooperativeId=id,name=nm,username=usr,usageStart=strt,usageEnd=end,
@@ -20,8 +24,10 @@ instance ToJSON Cooperative where
             "usageEnd" .= end, "fiscalCalendarType" .= toJSON cal]
 
 instance ToJSON Member where
-  toJSON Member{firstName=fn, memberId=i} = 
+  toJSON Member{firstName=fn, lastName=ln, acceptedOn=ac, memberId=i} = 
   	 object ["firstName" .= fn,
+                 "lastName" .= ln,
+                 "acceptedOn" .= toGregorian ac,
                  "memberId" .= i]
 
 instance ToJSON WorkPatronage where
@@ -73,6 +79,9 @@ instance ToJSON FiscalCalendarType where
   toJSON FiscalCalendarType{startf=st,periodTypef=prd} = 
     object["start" .= st, "periodType" .= AG.toJSON prd]
 
+instance (ToJSON a, ToJSON b) => ToJSON (M.Map a b) where
+  toJSON = toJSON . M.toList --should really be an object
+
 --FromQParams for PatronageWeights, WorkPatronage, FinancialResults, MemberEqAct
 
 instance FromJSON MemberEquityAction where
@@ -114,3 +123,27 @@ parseJSDate str =
   let (m,_:rs) = break (=='/') str
       (d,_:y) = break (=='/') rs
   in Just $ fromGregorian (read y) (read m) (read d)
+     
+class FromParams a where
+  parseObject :: ServerPart a
+  
+instance FromParams Member where --new member
+  parseObject = do 
+    let mbrId = 0    
+    firstName <- lookString "firstName"
+    lastName <- lookString "lastName"
+    Just acceptedOn <- fmap parseJSDate $ lookString "acceptedOn"
+    return $ Member firstName lastName mbrId acceptedOn 
+
+instance FromParams Cooperative where --new coop
+  parseObject = do
+    let cpId = 0
+    name <- lookString "name"
+    username <- lookString "username"
+    UTCTime{utctDay=usageStart} <- liftIO getCurrentTime
+    clTpStart <- lookRead "clTpStart"
+    clTpPeriodType <- lookRead "clTpPeriodType"
+    return $ 
+      Cooperative cpId name username usageStart Nothing 
+        (FiscalCalendarType clTpStart clTpPeriodType)
+    
