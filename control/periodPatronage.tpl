@@ -3,7 +3,8 @@
 
 <script>
 $(document).ready(function() {
-  $.getJSON("/coop/settings/allocate/method", function(fieldInfo){
+  $.getJSON("/coop/settings/allocate/method", function(all){
+    var fieldInfo = all[0]
     adjustPatronageHeaders(fieldInfo)
     var qs = $.url().param()
     fiscalPeriodPicker("#period", qs.period)

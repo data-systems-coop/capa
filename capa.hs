@@ -51,78 +51,98 @@ import Text.Printf(printf)
 import qualified System.Log.Logger as LG
 import qualified System.Log.Handler.Syslog as SYS
 
+import qualified Data.Maybe as MB
 
+import Happstack.Server.RqData(HasRqData(..), RqEnv)
 
 --------------APP CONTROLLER------------------------
 type TemplateStore = HeistState Identity
                      
 --expose default templateResponse with check==True                     
                      
-templateResponse name hState =  -- parameter to check cookie or not
-  nullDir >> method GET >>
-  --if check, then check cookie is set
-  let rendered = runIdentity $ renderTemplate hState name
-  in maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
-  	   (\(bldr,_) -> ok $ toResponse $ toByteString bldr)
-	   rendered  	
+generalTemplateResponse :: 
+  TemplateStore -> PersistConnection -> Bool -> B.ByteString -> ServerPartR
+generalTemplateResponse hState ref secure name = 
+  nullDir >> method GET >> do 
+    (_, _, cookies) <- askRqEnv
+    let mbSession = lookup "sessionid" cookies
+    liftIO $ LG.debugM "yo" $ show cookies
+    if secure && MB.isNothing mbSession
+      then seeOther ("/control/enter"::String) (toResponse ())
+      else do 
+        let rendered = runIdentity $ renderTemplate hState name
+        maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
+  	      (\(bldr,_) -> ok $ toResponse $ toByteString bldr)
+	      rendered  	
      
-resolveCoop::String -> PG.Connection -> PersistConnection -> ServerPartR
+
+resolveCoop :: String -> PG.Connection -> PersistConnection -> ServerPartR
 resolveCoop authUriBase dbCn ref = do 
+  ident <- retrieveProfile authUriBase
+  mbCoop <- liftIO $ coopGetFor dbCn ident
+  let redir = maybe "/control/enter" (\_ -> "/control/coop/summary") mbCoop
+  (if MB.isJust mbCoop then
+     attachSession ref $ MB.fromJust mbCoop
+   else 
+     liftIO $ LG.errorM "resolveCoop" $ printf "%s no coop" ident)
+  seeOther (redir::String) (toResponse ()) 
+    -- then redirect to login screen with "Not associated with coop"
+
+retrieveProfile :: String -> ServerPart OpenID
+retrieveProfile authUriBase = do 
   token <- lookString "token"
   let reqUri = authUriBase ++ token
   r <- liftIO $ simpleHttp reqUri
   let Just (A.Object r2) = A.decode r
   let AT.Success pf = (AT.parse (A..: "profile") r2)::AT.Result A.Object
   let AT.Success ident = (AT.parse (A..: "identifier") pf)::AT.Result String
-  -- auto resolve cp id by query
-  Cooperative{username=user} <- liftIO $ coopGet dbCn 1
-  let redir = if user == ident then "/control/coop/summary" else "/control/enter"
-  (if (user == ident) then do
-      liftIO $ LG.infoM "resolveCoop" $ printf "%s resolved for %s" user ("c1"::String)
-      utcNow <- liftIO CK.getCurrentTime
-      let secs = CK.formatTime defaultTimeLocale "%s" utcNow
-      let sessionId = secs
-      addCookies [(Session, mkCookie "sessionId" sessionId)]
-      g@Globals{sessions=sessions} <- query' ref GetIt
-      void $ update' ref $ PutIt g{sessions = M.insert sessionId (ident,1) sessions}
-   else 
-     liftIO $ LG.errorM "resolveCoop" $ printf "%s no coop" ident)
-  seeOther (redir::String) (toResponse ()) 
-    -- then redirect to login screen with "Not associated with coop"
-
+  return ident
   
+authenticatedForRegister :: String -> ServerPartR
+authenticatedForRegister authUriBase = do 
+  ident <- retrieveProfile authUriBase
+  seeOther ("/control/coop/register?username=" ++ ident) (toResponse ()) --url escape
+
 ---------------ENTRY---------------------------------
 capaApp :: 
-  PersistConnection -> PG.Connection -> ServerPartR -> TemplateStore -> ServerPartR
-capaApp ref conn resolveCoopCtrl hState = msum [
+  PersistConnection -> PG.Connection -> [ServerPartR] -> TemplateStore -> ServerPartR
+capaApp ref conn [resolveCoopCtrl, authControl] hState =
+  let templateResponseWithState = generalTemplateResponse hState ref
+      unsecuredTemplateResponse = templateResponseWithState False
+      templateResponse = templateResponseWithState True
+  in msum [
     --partial path failurs like missing parameter?
     dir "control" $ msum [ --remove control 
          dir "coop" $ msum [
-            dir "summary" $ templateResponse "coopSummary" hState
-          , dir "register" $ templateResponse "registerCoop" hState
+            dir "summary" $ templateResponse "coopSummary"
+          , dir "register" $ msum [
+                nullDir >> unsecuredTemplateResponse "registerCoop"
+              , dir "authenticate" $ unsecuredTemplateResponse "registerAuthenticate"]
           , dir "settings" $ msum [
-              templateResponse "coopSettings" hState 
+              templateResponse "coopSettings"
             , dir "disburse" $ dir "schedule" $ 
-                templateResponse "setDefaultDisbursalSchedule" hState] ]
-             -- view all
+                  templateResponse "setDefaultDisbursalSchedule"
+            , dir "show" $ templateResponse "showCoopSettings"] ]
        , dir "member" $ msum [
             dir "account" $ dir "action" $ dir "add" $ 
-              templateResponse "addAction" hState
+              templateResponse "addAction"
           , dir "patronage" $ dir "record" $ 
-              templateResponse "recordPatronage" hState ]
+              templateResponse "recordPatronage"]
        , dir "members" $ msum [
-             dir "accounts" $ templateResponse "memberAccounts" hState
-           , dir "patronage" $ dir "period" $ templateResponse "periodPatronage" hState
-           , dir "add" $ templateResponse "newMember" hState ]
+             dir "accounts" $ templateResponse "memberAccounts"
+           , dir "patronage" $ dir "period" $ templateResponse "periodPatronage"
+           , dir "add" $ templateResponse "newMember"]
        , dir "financial" $ dir "results" $ msum [
-             templateResponse "financialResults" hState
-           , dir "record" $ templateResponse "recordResult" hState ]
+             templateResponse "financialResults"
+           , dir "record" $ templateResponse "recordResult"]
        , dirs "equity" $ msum [ 
             dir "members"  $ dir "allocationsDisbursals" $ 
-              templateResponse "allocationsDisbursals" hState ] 
-       , dir "enter" $ templateResponse "enter" hState 
-       , dir "login" $ dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl
-       , dir "export" $ templateResponse "export" hState]
+              templateResponse "allocationsDisbursals"] 
+       , dir "enter" $ unsecuredTemplateResponse "enter" 
+       , dir "login" $ msum [
+             dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl
+           , dir "register" $ authControl]
+       , dir "export" $ templateResponse "export"]
   
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
        method GET >> getAllFinancialResultsDetail ref conn
@@ -150,6 +170,7 @@ capaApp ref conn resolveCoopCtrl hState = msum [
            , dir "save" $ method POST >> postAllocationDisbursal ref conn] ] ]
   , dir "coop" $ msum [
        nullDir >> method GET >> getCooperative ref conn  
+     , nullDir >> method POST >> putCooperative ref conn
      , dir "settings" $ msum [
           dir "allocate" $ msum [ 
                method POST >> putCoopAllocateSettings ref conn
@@ -157,12 +178,14 @@ capaApp ref conn resolveCoopCtrl hState = msum [
              , dir "seniority" $ dir "levels" $ 
                  method GET >> getSeniorityMappings ref conn] 
         , dir "disburse" $ dir "schedule" $ dir "default" $  
-                 method POST >> putDefaultDisbursalSchedule ref conn] ] 
+                 method POST >> putDefaultDisbursalSchedule ref conn
+               , method GET >> getDefaultDisbursalSchedule ref conn] ] 
   , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref conn  
   , dir "allocate" $ msum [
       dir "method" $ path $ (okJSResp . fieldDetails . read) -- GET
     , dir "methods" $ method GET >> (okJSResp $ fmap show allocMethods)]
-  , dir "export.zip" $ method GET >> exportAll ref conn]
+  , dir "export.zip" $ method GET >> exportAll ref conn
+  , dir "logout" $ expireSession ref]
 
                                           
 main = do
@@ -200,7 +223,7 @@ main = do
      capaApp 
        x 
        conn 
-       (resolveCoop authUriBase conn x))
+       [resolveCoop authUriBase conn x, authenticatedForRegister authUriBase])
     ehs 
   DB.disconnect conn
 

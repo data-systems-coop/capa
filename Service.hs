@@ -35,7 +35,14 @@ import qualified System.Posix.Directory as DR
 import qualified System.Posix.Files as FL
 import qualified System.Process as SP
 
--- MEDIUM
+import Happstack.Lite
+  (mkCookie, addCookies, expireCookie, lookCookieValue, CookieLife(Session))
+import qualified Data.Time as CK
+import System.Locale(defaultTimeLocale)
+import Data.Acid.Advanced   ( query', update' )
+import Control.Monad ( void )
+
+
 -- for provided year, provide 2 years back and forward
 getLatestFiscalPeriods :: PersistConnection -> PG.Connection -> ServerPartR
 getLatestFiscalPeriods ref dbCn = do
@@ -43,7 +50,7 @@ getLatestFiscalPeriods ref dbCn = do
   Cooperative{fiscalCalendarType=ft} <- liftIO $ coopGet dbCn cpId
   let FiscalCalendarType{startf=startMonth, periodTypef=pt} = ft
   UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
-  let (endYear,_,_) = toGregorian $ addGregorianYearsClip 2 day
+  let (endYear,_,_) = toGregorian $ addGregorianYearsClip 5 day
   let end = fromGregorian endYear startMonth 1
   let stepBack = 
         if pt == Year 
@@ -53,7 +60,7 @@ getLatestFiscalPeriods ref dbCn = do
   let periods = 
         fmap 
           ((\(yr,mo,_) -> FiscalPeriod (GregorianMonth yr mo) pt) . toGregorian)
-          (take 10 $ enumStarts end)
+          (take 36 $ enumStarts end)
   okJSResp periods
 
 getCooperative :: PersistConnection -> PG.Connection -> ServerPartR
@@ -61,15 +68,13 @@ getCooperative ref dbCn = do
   cpId <- getSessionCoopId ref
   (liftIO $ coopGet dbCn cpId) >>= okJSResp
 
--- EASY 
 putCooperative :: PersistConnection -> PG.Connection -> ServerPartR
 putCooperative ref dbCn = do
   coop <- parseObject  
-  liftIO $ coopSave dbCn coop
-  -- store session for user
+  cpId <- liftIO $ coopSave dbCn coop 
+  coop <- liftIO $ coopGet dbCn cpId
+  attachSession ref coop
   okJSResp ()
-
--- getDefaultDisbursalSchedule (not rush)
 
 putDefaultDisbursalSchedule :: PersistConnection -> PG.Connection -> ServerPartR
 putDefaultDisbursalSchedule ref dbCn = do 
@@ -78,6 +83,11 @@ putDefaultDisbursalSchedule ref dbCn = do
   let Just defaultDisbSched = 
         (decode defaultDisbSchedStr)::Maybe DisbursalSchedule
   (liftIO $ dsbSchedSaveFor dbCn cpId defaultDisbSched) >>= okJSResp
+
+getDefaultDisbursalSchedule :: PersistConnection -> PG.Connection -> ServerPartR
+getDefaultDisbursalSchedule ref dbCn = do 
+  cpId <- getSessionCoopId ref 
+  (liftIO $ dsbSchedGet dbCn cpId) >>= okJSResp
 
 getSeniorityMappings :: PersistConnection -> PG.Connection -> ServerPartR
 getSeniorityMappings ref dbCn = do
@@ -95,8 +105,8 @@ putCoopAllocateSettings ref dbCn = do
 getAllocMethodDetail :: PersistConnection -> PG.Connection -> ServerPartR
 getAllocMethodDetail ref dbCn = do
   cpId <- getSessionCoopId ref
-  (liftIO $ allocStngGet dbCn cpId) >>= (okJSResp . fieldDetails . fst)
-
+  (method, wghts) <- (liftIO $ allocStngGet dbCn cpId) 
+  okJSResp $ ((fieldDetails method), show method, wghts)
 
 saveCoopAllocateSettings :: 
   PG.Connection -> Integer -> AllocationMethod -> PatronageWeights -> 
@@ -339,7 +349,7 @@ exportAll ref dbCn = do
     liftIO $ ZP.addFilesToArchive [ZP.OptRecursive] ZP.emptyArchive [("/tmp/" ++ time)] 
   ok $ toResponseBS (CB.pack "application/zip") $ ZP.fromArchive arch
 
---util--
+--authenticate util--
 getSessionCoopId :: PersistConnection -> ServerPart Integer
 getSessionCoopId ref = do 
   Globals{sessions=sessions} <- query' ref GetIt
@@ -348,3 +358,21 @@ getSessionCoopId ref = do
   guard $ MB.isJust res
   let Just (_,cpId) = res
   return cpId
+
+expireSession :: PersistConnection -> ServerPartR
+expireSession ref = do
+  g@Globals{sessions=sessions} <- query' ref GetIt
+  sessionId <- lookCookieValue "sessionId"
+  void $ update' ref $ PutIt g{sessions = M.delete sessionId sessions}
+  expireCookie "sessionId"
+  okJSResp ()
+
+attachSession :: PersistConnection -> Cooperative -> ServerPart ()
+attachSession ref Cooperative{cooperativeId=cpId, name=name, username=user} = do
+  liftIO $ LG.infoM "Service.attachSession" $ printf "Resolved for %s, %s" user name
+  utcNow <- liftIO CK.getCurrentTime
+  let secs = CK.formatTime defaultTimeLocale "%s" utcNow
+  let sessionId = secs
+  addCookies [(Session, mkCookie "sessionId" sessionId)]
+  g@Globals{sessions=sessions} <- query' ref GetIt
+  void $ update' ref $ PutIt g{sessions = M.insert sessionId (user, cpId) sessions}

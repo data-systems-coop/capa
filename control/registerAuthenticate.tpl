@@ -10,7 +10,7 @@
     if (typeof window.janrain !== 'object') window.janrain = {};
     if (typeof window.janrain.settings !== 'object') window.janrain.settings = {};
     
-    janrain.settings.tokenUrl = 'http://localhost:8000/control/login/resolve/coop';
+    janrain.settings.tokenUrl = 'http://localhost:8000/control/login/register';
 
     function isReady() { janrain.ready = true; };
     if (document.addEventListener) {
@@ -38,25 +38,12 @@
   padding-top: 100px;
   background-color: #f5f5f5;
 }
-#register {
-  border: 1px solid rgb(192,192,192);
-  border-radius: 10px 10px 10px 10px;
-        margin: 0 auto 20px;
-        background-color: rgb(255,255,255);
-  height: 156px;
-}
-
 </style>
 
 </head>
 <body>
 <div class="container">
 <div class="row">
-<div class="span3 offset1" id="register">
-  <div style="position:relative; top: 50%; text-align:center">
-    <a href="/control/coop/register/authenticate" class="btn">Register Coop</a>
- </div>
-</div>
 <div class="span5" id="janrainEngageEmbed"></div>
 </div>
 </div>

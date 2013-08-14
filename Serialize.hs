@@ -40,6 +40,14 @@ instance ToJSON WorkPatronage where
 		 "revenueGenerated" .= revenueGenerated, 
 		 "performedOver" .= AG.toJSON prf]
 
+instance ToJSON PatronageWeights where
+  toJSON PatronageWeights{workw=workw,skillWeightedWorkw=skillWeightedWorkw,
+                          seniorityw=seniorityw,qualityw=qualityw,
+                          revenueGeneratedw=revenueGeneratedw} = 
+         object ["workw" .= workw, "skillWeightedWorkw" .= skillWeightedWorkw,
+                 "seniorityw" .= seniorityw, "qualityw" .= qualityw,
+                 "revenueGeneratedw" .= revenueGeneratedw]
+
 instance ToJSON MemberEquityAccount where
   toJSON MemberEquityAccount{ida=ida,accountType=typ} = 
     object ["ida" .= ida, "accountType" .= AG.toJSON typ]
@@ -63,6 +71,10 @@ instance ToJSON FinancialResults where
          object ["over" .= toJSON ov,
                  "surplus" .= sr, 
                  "allocatedOn" .= toJSON ao]
+
+instance ToJSON GregorianDuration where
+  toJSON (GregorianDuration yrs mos) = 
+         object["years" .= yrs, "months" .= mos]
 
 instance ToJSON Day where
   toJSON d = 
@@ -138,7 +150,7 @@ instance FromParams Member where --new member
 instance FromParams Cooperative where --new coop
   parseObject = do
     let cpId = 0
-    name <- lookString "name"
+    name <- lookString "cpName"
     username <- lookString "username"
     UTCTime{utctDay=usageStart} <- liftIO getCurrentTime
     clTpStart <- lookRead "clTpStart"

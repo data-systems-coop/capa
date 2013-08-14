@@ -77,7 +77,11 @@ function actionTypePicker(id){
     $(id).append(sprintf("<option value='%s'>%s</option>",typ.value, typ.label))
   })
 }
-  
+function monthPicker(id){
+  [1,2,3,4,5,6,7,8,9,10,11,12].forEach(function(m){
+    $(id).append(sprintf("<option value='%s'>%s</option>", m, m))
+  }) 
+}
 var allocMethodFields = 
   ["work", "skillWeightedWork", "seniority", "quality", "revenueGenerated"]
 function redirect(to){ window.location.href = to; }

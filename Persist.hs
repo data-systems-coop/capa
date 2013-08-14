@@ -50,12 +50,21 @@ coopGet dbCn cpId = do
     "select cpId, cpName, username, usageStart, usageEnd, (fiscalCalendarType).start, (fiscalCalendarType).prdType from Cooperative where cpId = ?" [DB.toSql cpId]
   return $ coopFromRow row
 
-coopSave :: PG.Connection -> Cooperative -> IO ()
+coopGetFor :: PG.Connection -> OpenID -> IO (Maybe Cooperative)
+coopGetFor dbCn username = do 
+  rows <- DB.quickQuery dbCn 
+    "select cpId, cpName, username, usageStart, usageEnd, (fiscalCalendarType).start, (fiscalCalendarType).prdType from Cooperative where username = ?" [DB.toSql username]
+  return $ fmap coopFromRow $ MB.listToMaybe rows
+
+coopSave :: PG.Connection -> Cooperative -> IO Integer
 coopSave dbCn Cooperative{name=nm,username=usr,usageStart=st,fiscalCalendarType=clTp}=
   do 
    let FiscalCalendarType{startf=fst,periodTypef=typ} = clTp
-   DB.run dbCn "insert into Cooperative values (select max(cpId)+1 from Cooeprative,?,?,?,(?,?))" [DB.toSql nm, DB.toSql usr, DB.toSql st, DB.toSql fst, DB.toSql $ show typ] 
+   DB.run dbCn "insert into Cooperative(cpid, cpName, username, usageStart, fiscalCalendarType) values ((select max(cpId)+1 from Cooperative),?,?,?,(?,?))" [DB.toSql nm, DB.toSql usr, DB.toSql st, DB.toSql fst, DB.toSql $ show typ] 
+   [[cpId]] <- DB.quickQuery dbCn "select max(cpId) from Cooperative" []
    DB.commit dbCn
+   return $ DB.fromSql cpId
+
    
 rsltGetAll :: PG.Connection -> Integer -> IO [FinancialResults]
 rsltGetAll dbCn cpId = do

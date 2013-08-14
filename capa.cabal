@@ -11,4 +11,4 @@ executable capa
                         HDBC, HDBC-postgresql, old-locale, ConfigFile, MissingH,
                         hslogger, zip-archive, unix, process
   hs-source-dirs:	.
-  main-is:		capa.hsls 
+  main-is:		capa.hs

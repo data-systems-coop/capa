@@ -22,7 +22,8 @@ function loadParameters(){
 function setupForm(){
   seniorityPicker("#seniority")
   qualityPicker("#quality")  
-  $.getJSON("/coop/settings/allocate/method", function(fieldInfo){
+  $.getJSON("/coop/settings/allocate/method", function(all){
+    var fieldInfo = all[0]
     allocMethodFields.forEach(function(e){
       if(!fieldInfo.some(function(f){return f.ptrngFldLabel == e})){
         $("#" + e).remove()
