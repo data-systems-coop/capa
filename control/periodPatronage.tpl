@@ -3,6 +3,7 @@
 
 <script>
 $(document).ready(function() {
+  updateNavigation("Patronage")
   $.getJSON("/coop/settings/allocate/method", function(all){
     var fieldInfo = all[0]
     adjustPatronageHeaders(fieldInfo)

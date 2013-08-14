@@ -3,6 +3,7 @@
 
 <script>
 $(document).ready(function() {
+  updateNavigation("Patronage")
   loadParameters()
   setupForm()
 })

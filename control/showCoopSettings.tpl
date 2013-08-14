@@ -3,6 +3,7 @@
 <script>$(document).ready(function(){ setupView() })</script>
 <script>
 function setupView(){
+  updateNavigation("Settings")
   loadCoop()
   loadAllocationSettings()  
   loadDisbursalSchedule()
@@ -83,5 +84,13 @@ function loadDisbursalSchedule(){
 </table>
 </div>
 </div>
+
+<div class="row">
+<div class="span7">
+<a href="/control/export">Go to export page</a>
+</div>
+</div>
+
+
 
 </apply>

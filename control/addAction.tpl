@@ -3,6 +3,7 @@
 
 <script>
 $(document).ready(function() {
+  updateNavigation("Member Accounts")
   loadParameters()
   setupForm()
 })

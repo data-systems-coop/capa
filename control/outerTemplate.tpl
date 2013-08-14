@@ -95,18 +95,18 @@ function updateNavigation(selectItem){
   $(".navbar-inner ul li:contains('" + selectItem + "')").addClass("active")
 }
 </script>
-<div class="navbar">  <!-- add login / user name inline form -->
+<div class="navbar"> 
 <div class="navbar-inner">
 <a class="brand" href="#">CAPA</a>
 <ul class="nav">
-<!-- finish menue -->
-<li class="active"><a href="#">Home</a></li>
-<li><a href="/control/member/patronage/add">Patronage</a></li>
-<li><a href="/control/equity/members/allocate">Allocate</a></li>
+<li class="active"><a href="/control/coop/summary">Home</a></li>
+<li><a href="/control/financial/results">Financial Results</a></li>
+<li><a href="/control/members/patronage/period">Patronage</a></li>
+<li><a href="/control/members/accounts">Member Accounts</a></li>
 </ul>
 <ul class="nav pull-right">
-<li><a href="#">Members</a></li>
-<li><a href="#">Configure</a></li>
+<li><a href="/control/coop/settings/show">Settings</a></li>
+<li><a href="/control/logout">Logout</a></li>
 </ul>
 </div>
 </div>

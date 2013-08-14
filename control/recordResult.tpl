@@ -1,7 +1,10 @@
 <apply template="outerTemplate">
 
 <script>
-$(document).ready(setupForm)
+$(document).ready(function(){
+  updateNavigation("Financial Results")
+  setupForm()
+})
 function setupForm(){
   $("#recordResult").ajaxForm({
      success: function(){

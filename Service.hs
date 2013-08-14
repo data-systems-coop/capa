@@ -76,6 +76,12 @@ putCooperative ref dbCn = do
   attachSession ref coop
   okJSResp ()
 
+getCoopRegistrationState :: 
+  PersistConnection -> PG.Connection -> ServerPart (Bool,Bool) 
+getCoopRegistrationState ref dbCn = do
+  cpId <- getSessionCoopId ref
+  liftIO $ coopRegisterState dbCn cpId 
+
 putDefaultDisbursalSchedule :: PersistConnection -> PG.Connection -> ServerPartR
 putDefaultDisbursalSchedule ref dbCn = do 
   cpId <- getSessionCoopId ref

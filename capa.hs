@@ -54,15 +54,15 @@ import qualified System.Log.Handler.Syslog as SYS
 import qualified Data.Maybe as MB
 
 import Happstack.Server.RqData(HasRqData(..), RqEnv)
+import Happstack.Lite(serveDirectory, Browsing(..))
 
 --------------APP CONTROLLER------------------------
 type TemplateStore = HeistState Identity
                      
---expose default templateResponse with check==True                     
-                     
 generalTemplateResponse :: 
-  TemplateStore -> PersistConnection -> Bool -> B.ByteString -> ServerPartR
-generalTemplateResponse hState ref secure name = 
+  PG.Connection -> TemplateStore -> PersistConnection -> 
+  Bool -> B.ByteString -> ServerPartR
+generalTemplateResponse dbCn hState ref secure name = 
   nullDir >> method GET >> do 
     (_, _, cookies) <- askRqEnv
     let mbSession = lookup "sessionid" cookies
@@ -70,6 +70,9 @@ generalTemplateResponse hState ref secure name =
     if secure && MB.isNothing mbSession
       then seeOther ("/control/enter"::String) (toResponse ())
       else do 
+        --(alloc, disb) <- getCoopRegistrationState ref dbCn
+        --if not alloc || not disb
+        --then seeOther ("/control/coop/register/partial?alloc=t"
         let rendered = runIdentity $ renderTemplate hState name
         maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
   	      (\(bldr,_) -> ok $ toResponse $ toByteString bldr)
@@ -107,16 +110,19 @@ authenticatedForRegister authUriBase = do
 capaApp :: 
   PersistConnection -> PG.Connection -> [ServerPartR] -> TemplateStore -> ServerPartR
 capaApp ref conn [resolveCoopCtrl, authControl] hState =
-  let templateResponseWithState = generalTemplateResponse hState ref
+  let templateResponseWithState = generalTemplateResponse conn hState ref
       unsecuredTemplateResponse = templateResponseWithState False
       templateResponse = templateResponseWithState True
   in msum [
+    dir "img" $ serveDirectory EnableBrowsing [] "control/images"
+    --js here?
     --partial path failurs like missing parameter?
-    dir "control" $ msum [ --remove control 
+  , dir "control" $ msum [ --remove control 
          dir "coop" $ msum [
             dir "summary" $ templateResponse "coopSummary"
           , dir "register" $ msum [
                 nullDir >> unsecuredTemplateResponse "registerCoop"
+              , dir "partial" $ templateResponse "partialRegistration"
               , dir "authenticate" $ unsecuredTemplateResponse "registerAuthenticate"]
           , dir "settings" $ msum [
               templateResponse "coopSettings"
@@ -142,6 +148,8 @@ capaApp ref conn [resolveCoopCtrl, authControl] hState =
        , dir "login" $ msum [
              dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl
            , dir "register" $ authControl]
+       , dir "logout" $ 
+           expireSession ref >> seeOther ("/control/enter"::String) (toResponse ())
        , dir "export" $ templateResponse "export"]
   
   , dir "financial" $ dir "results" $ msum [   -- change to api/  

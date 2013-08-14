@@ -333,3 +333,9 @@ dsbSchedSaveFor dbCn cpId schd = do
         [DB.toSql cpId, DB.toSql yr, DB.toSql mo, toSqlDouble portion])
     schd
   DB.commit dbCn
+  
+coopRegisterState :: PG.Connection -> Integer -> IO (Bool, Bool)
+coopRegisterState dbCn cpId = do 
+  [[alloc,disb]] <- DB.quickQuery dbCn "select (select count(*) from CoopSettings where cpId = ?) > 0, (select count(*) from DisbursalSchedule where cpId = ?) > 0" 
+    [DB.toSql cpId, DB.toSql cpId]
+  return (DB.fromSql alloc, DB.fromSql disb)

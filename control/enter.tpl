@@ -61,5 +61,20 @@
 </div>
 </div>
 
+<div class="row">
+<div class="span8">
+  <p>Welcome to the [C]oop [A]ccounting [P]atronage [A]pplication, brought to you by <img src="/img/dsilogo_225x66.gif">
+  <p>
+  <p>Motivations and Support --here--.
+  <p>We intend for this application to be used freely by worker cooperatives. If you find you like this application and are motivated to make a donation, you can learn more about the costs involved in producing and maintaining it, other financials, and a method of donating --here--. 
+  <p>Credits: Specifying, Demoing, Development, Systems Admin.
+  <p>You can obtain the source code for a local installation --here--. If you seek to significantly modify the system to suit your local installation, or you would like support in setting up a local instance of CAPA, please contact us for availability and consulting rates.
+  <p>Technology Platform
+  <img src="/img/200px-Platform.svg.png"><img src="/img/80x16_2.gif">
+  <img src="/img/happstack.jpg"><img src="/img/poweredby3.png">
+  <img src="/img/powered_by_GNU_Emacs.jpeg"><img src="/img/poweredbygnulinux.jpg">
+</div>
+</div>  
+  
 </body>
 </html>

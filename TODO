@@ -2,7 +2,7 @@
 -create monitoring(casey), schedule backup(casey)
 -conn pool(casey)
 
--menu, nav flow; open/close db
+-nav flow/menus; open/close db
 -performance/memory basic check --------- DONE
 
 -form validation failures/errors (entry forms) - important still

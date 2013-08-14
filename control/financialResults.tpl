@@ -3,6 +3,7 @@
 
 <script>
 $(document).ready(function(){
+  updateNavigation("Financial Results")
   loadAllFinancialResults()
 })
 

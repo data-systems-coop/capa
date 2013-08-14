@@ -3,6 +3,7 @@
 
 <script>
 $(document).ready(function() { 
+  updateNavigation("Financial Results")
   var over = JSON.parse($.url().param("over"))
   loadAllocationsDisbursals(over)
   setupSaveForm(over);

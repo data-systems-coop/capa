@@ -1,6 +1,8 @@
 <!-- -*-HTML-*- -->
 <apply template="outerTemplate">
-<script>$(document).ready(function(){setupForm() })</script>
+<script>$(document).ready(function(){
+  updateNavigation("Member Accounts") 
+  setupForm() })</script>
 <script>
 function setupForm(){
   var memAcctMap = new Object()
