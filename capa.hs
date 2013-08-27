@@ -59,28 +59,34 @@ import Happstack.Lite(serveDirectory, Browsing(..))
 --------------APP CONTROLLER------------------------
 type TemplateStore = HeistState Identity
                      
+redirect :: String -> ServerPartR
+redirect url = seeOther url $ toResponse ()
+
 generalTemplateResponse :: 
-  PG.Connection -> TemplateStore -> PersistConnection -> 
-  Bool -> B.ByteString -> ServerPartR
-generalTemplateResponse dbCn hState ref secure name = 
+  TemplateStore -> PersistConnection -> Bool -> Bool -> 
+  B.ByteString -> PG.Connection -> ServerPartR
+generalTemplateResponse hState ref secure checkReg name dbCn = 
   nullDir >> method GET >> do 
     (_, _, cookies) <- askRqEnv
     let mbSession = lookup "sessionid" cookies
-    liftIO $ LG.debugM "yo" $ show cookies
     if secure && MB.isNothing mbSession
-      then seeOther ("/control/enter"::String) (toResponse ())
+      then redirect "/control/enter"
       else do 
-        --(alloc, disb) <- getCoopRegistrationState ref dbCn
-        --if not alloc || not disb
-        --then seeOther ("/control/coop/register/partial?alloc=t"
-        let rendered = runIdentity $ renderTemplate hState name
-        maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
-  	      (\(bldr,_) -> ok $ toResponse $ toByteString bldr)
-	      rendered  	
+        (alloc, disb) <- getCoopRegistrationState ref dbCn
+        if checkReg && (not alloc || not disb) 
+          then
+            redirect $ 
+              printf "/control/coop/register/partial?alloc=%s&disburse=%s" 
+                (show alloc) (show disb) 
+          else do              
+            let rendered = runIdentity $ renderTemplate hState name
+            maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
+  	          (\(bldr,_) -> ok $ toResponse $ toByteString bldr)
+	          rendered  	
      
 
-resolveCoop :: String -> PG.Connection -> PersistConnection -> ServerPartR
-resolveCoop authUriBase dbCn ref = do 
+resolveCoop :: String -> PersistConnection -> PG.Connection -> ServerPartR
+resolveCoop authUriBase ref dbCn = do 
   ident <- retrieveProfile authUriBase
   mbCoop <- liftIO $ coopGetFor dbCn ident
   let redir = maybe "/control/enter" (\_ -> "/control/coop/summary") mbCoop
@@ -88,7 +94,7 @@ resolveCoop authUriBase dbCn ref = do
      attachSession ref $ MB.fromJust mbCoop
    else 
      liftIO $ LG.errorM "resolveCoop" $ printf "%s no coop" ident)
-  seeOther (redir::String) (toResponse ()) 
+  redirect redir
     -- then redirect to login screen with "Not associated with coop"
 
 retrieveProfile :: String -> ServerPart OpenID
@@ -104,15 +110,24 @@ retrieveProfile authUriBase = do
 authenticatedForRegister :: String -> ServerPartR
 authenticatedForRegister authUriBase = do 
   ident <- retrieveProfile authUriBase
-  seeOther ("/control/coop/register?username=" ++ ident) (toResponse ()) --url escape
+  redirect $ "/control/coop/register?username=" ++ ident --url escape
+
+withConn :: String -> (PG.Connection -> ServerPartR) -> ServerPartR
+withConn connString body = do -- use bracket instead
+  cn <- liftIO $ PG.connectPostgreSQL connString
+  r <- body cn  
+  liftIO $ DB.disconnect cn
+  return r
 
 ---------------ENTRY---------------------------------
 capaApp :: 
-  PersistConnection -> PG.Connection -> [ServerPartR] -> TemplateStore -> ServerPartR
-capaApp ref conn [resolveCoopCtrl, authControl] hState =
-  let templateResponseWithState = generalTemplateResponse conn hState ref
-      unsecuredTemplateResponse = templateResponseWithState False
-      templateResponse = templateResponseWithState True
+  PersistConnection -> String -> [ServerPartR] -> TemplateStore -> ServerPartR
+capaApp ref connStr [resolveCoopCtrl, authControl] hState =
+  let withCn = withConn connStr
+      templateResponseWithState = generalTemplateResponse hState ref
+      unsecuredTemplateResponse nm = withCn $ templateResponseWithState False True nm
+      templateResponse nm = withCn $ templateResponseWithState True True nm
+      noPartialTemplateResponse nm = withCn $ templateResponseWithState True False nm
   in msum [
     dir "img" $ serveDirectory EnableBrowsing [] "control/images"
     --js here?
@@ -122,12 +137,12 @@ capaApp ref conn [resolveCoopCtrl, authControl] hState =
             dir "summary" $ templateResponse "coopSummary"
           , dir "register" $ msum [
                 nullDir >> unsecuredTemplateResponse "registerCoop"
-              , dir "partial" $ templateResponse "partialRegistration"
+              , dir "partial" $ noPartialTemplateResponse "partialRegistration"
               , dir "authenticate" $ unsecuredTemplateResponse "registerAuthenticate"]
           , dir "settings" $ msum [
-              templateResponse "coopSettings"
+              noPartialTemplateResponse "coopSettings"
             , dir "disburse" $ dir "schedule" $ 
-                  templateResponse "setDefaultDisbursalSchedule"
+                  noPartialTemplateResponse "setDefaultDisbursalSchedule"
             , dir "show" $ templateResponse "showCoopSettings"] ]
        , dir "member" $ msum [
             dir "account" $ dir "action" $ dir "add" $ 
@@ -149,50 +164,50 @@ capaApp ref conn [resolveCoopCtrl, authControl] hState =
              dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl
            , dir "register" $ authControl]
        , dir "logout" $ 
-           expireSession ref >> seeOther ("/control/enter"::String) (toResponse ())
+           expireSession ref >> redirect "/control/enter"
        , dir "export" $ templateResponse "export"]
   
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
-       method GET >> getAllFinancialResultsDetail ref conn
-     , method POST >> putFinancialResults ref conn]
+       method GET >> (withCn $ getAllFinancialResultsDetail ref)
+     , method POST >> (withCn $ putFinancialResults ref)]
   , dir "members" $ msum [
-        nullDir >> method GET >> getMembers ref conn
+        nullDir >> method GET >> (withCn $ getMembers ref)
       , dir "equity" $ dir "accounts" $ 
-          method GET >> getAllMembersEquityAccounts ref conn
-      , dir "patronage" $ method GET >> getAllMemberPatronage ref conn]
+          method GET >> (withCn $ getAllMembersEquityAccounts ref)
+      , dir "patronage" $ method GET >> (withCn $ getAllMemberPatronage ref)]
   , dir "member" $ msum [ 
-         method POST >> putMember ref conn
-       , method GET >> getMember ref conn
-       , method POST >> putMemberPatronage ref conn
+         method POST >> (withCn $ putMember ref)
+       , method GET >> (withCn $ getMember ref)
+       , method POST >> (withCn $ putMemberPatronage ref)
        , dir "equity" $ msum [
-           dir "disburse" $ method POST >> postScheduleAllocateDisbursal ref conn
-         , dir "history" $ method POST >> putEquityAction ref conn
+           dir "disburse" $ method POST >> (withCn $ postScheduleAllocateDisbursal ref)
+         , dir "history" $ method POST >> (withCn $ putEquityAction ref)
          , dir "account" $ msum [
-                nullDir >> method GET >> getMemberEquityAccount ref conn
+                nullDir >> method GET >> (withCn $ getMemberEquityAccount ref)
               , dir "actions" $ 
-                  method GET >> getActionsForMemberEquityAcct ref conn] ] ]
+                  method GET >> (withCn $ getActionsForMemberEquityAcct ref)] ] ]
   , dir "equity" $ msum [
        dir "members" $ msum [
          dir "allocate" $ msum [
-             dir "generate" $ method POST >> postAllocateToMembers ref conn 
-           , dir "save" $ method POST >> postAllocationDisbursal ref conn] ] ]
+             dir "generate" $ method POST >> (withCn $ postAllocateToMembers ref)
+           , dir "save" $ method POST >> (withCn $ postAllocationDisbursal ref)] ] ]
   , dir "coop" $ msum [
-       nullDir >> method GET >> getCooperative ref conn  
-     , nullDir >> method POST >> putCooperative ref conn
+       nullDir >> method GET >> (withCn $ getCooperative ref)
+     , nullDir >> method POST >> (withCn $ putCooperative ref)
      , dir "settings" $ msum [
           dir "allocate" $ msum [ 
-               method POST >> putCoopAllocateSettings ref conn
-             , dir "method" $ method GET >> getAllocMethodDetail ref conn
+               method POST >> (withCn $ putCoopAllocateSettings ref)
+             , dir "method" $ method GET >> (withCn $ getAllocMethodDetail ref)
              , dir "seniority" $ dir "levels" $ 
-                 method GET >> getSeniorityMappings ref conn] 
+                 method GET >> (withCn $ getSeniorityMappings ref)] 
         , dir "disburse" $ dir "schedule" $ dir "default" $  
-                 method POST >> putDefaultDisbursalSchedule ref conn
-               , method GET >> getDefaultDisbursalSchedule ref conn] ] 
-  , dir "fiscal" $ dir "periods" $ getLatestFiscalPeriods ref conn  
+                 method POST >> (withCn $ putDefaultDisbursalSchedule ref)
+               , method GET >> (withCn $ getDefaultDisbursalSchedule ref)] ] 
+  , dir "fiscal" $ dir "periods" $ (withCn $ getLatestFiscalPeriods ref)
   , dir "allocate" $ msum [
       dir "method" $ path $ (okJSResp . fieldDetails . read) -- GET
     , dir "methods" $ method GET >> (okJSResp $ fmap show allocMethods)]
-  , dir "export.zip" $ method GET >> exportAll ref conn
+  , dir "export.zip" $ method GET >> (withCn $ exportAll ref)
   , dir "logout" $ expireSession ref]
 
                                           
@@ -210,12 +225,11 @@ main = do
   let authUriBase = (forceEither $ CF.get cp "DEFAULT" "authuribase")::String
   let servicesUri = (forceEither $ CF.get cp "DEFAULT" "servicesuri")::String
   let templateDir = (forceEither $ CF.get cp "DEFAULT" "templatedir")
+  let connString = 
+        (printf "host=%s port=%d dbname=%s user=%s password=%s"
+              dbHost dbPort dbName dbUser dbPass)
   -- config should select debug or not
   x <- openLocalState g0
-  conn <- 
-     PG.connectPostgreSQL 
-       (printf "host=%s port=%d dbname=%s user=%s password=%s"
-              dbHost dbPort dbName dbUser dbPass)
   ehs <- runEitherT $ do 
      templateRepo <- loadTemplates templateDir
      let hCfg = (HeistConfig 
@@ -230,9 +244,9 @@ main = do
     (serve Nothing . 
      capaApp 
        x 
-       conn 
-       [resolveCoop authUriBase conn x, authenticatedForRegister authUriBase])
+       connString
+       [withConn connString $ resolveCoop authUriBase x, 
+        authenticatedForRegister authUriBase])
     ehs 
-  DB.disconnect conn
 
 

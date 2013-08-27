@@ -2,11 +2,12 @@
 -create monitoring(casey), schedule backup(casey)
 -conn pool(casey)
 
--nav flow/menus; open/close db
+-frame
 -performance/memory basic check --------- DONE
 
 -form validation failures/errors (entry forms) - important still
 -meta: cost estimate/donate/financial health monitor (+ general DSI/project health)
+-domain name, nginx forward
 
 notes...
 

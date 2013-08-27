@@ -94,13 +94,17 @@ function updateNavigation(selectItem){
   $(".navbar-inner ul li").removeClass("active")
   $(".navbar-inner ul li:contains('" + selectItem + "')").addClass("active")
 }
+function disableNavigation(){
+  $(".navbar-inner ul li").removeClass("active")
+  $(".navbar-inner ul li").addClass("disabled")
+}
 </script>
 <div class="navbar"> 
 <div class="navbar-inner">
 <a class="brand" href="#">CAPA</a>
 <ul class="nav">
 <li class="active"><a href="/control/coop/summary">Home</a></li>
-<li><a href="/control/financial/results">Financial Results</a></li>
+<li class="disabled"><a href="/control/financial/results">Financial Results</a></li>
 <li><a href="/control/members/patronage/period">Patronage</a></li>
 <li><a href="/control/members/accounts">Member Accounts</a></li>
 </ul>

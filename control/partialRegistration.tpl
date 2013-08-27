@@ -11,9 +11,9 @@
 <script>
 function setupForm(){
   var qs = $.url().param()
-  if(qs.alloc == undefined)
+  if(qs.alloc == "True")
     $("a:contains('Allocation')").addClass("disabled")
-  if(qs.disburse == undefined)
+  if(qs.disburse == "True")
     $("a:contains('Disbursal')").addClass("disabled")
 }
 </script>

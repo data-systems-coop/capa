@@ -37,7 +37,7 @@ function setupForm(){
   setupAddLevel()
   $('form').ajaxForm({
        success: function(){
-	 window.location.href = sprintf("/control/financial/results")
+	 window.location.href = sprintf("/control/coop/summary")
        }
     })
 }
@@ -127,7 +127,7 @@ function setupForm(){
     <div class="span5">
 	  <div class="form-actions">
 	    <button type="submit" class="btn btn-primary">Save</button>
-	    <a class="btn" href="/control/coopSummary">Cancel</a> 
+	    <a class="btn" href="/control/coop/summary">Cancel</a> 
 	  </div>
     </div>
 </div>

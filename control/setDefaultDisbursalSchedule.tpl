@@ -13,7 +13,7 @@ function setupForm(){
   setupAddDisbursal()
   $('form').ajaxForm({
        success: function(){
-	 redirect("/control/financial/results")
+	 redirect("/control/coop/summary")
        }
     })
 }
