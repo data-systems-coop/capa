@@ -1,15 +1,9 @@
-<!DOCTYPE html>
-<html>
-<head>
-<link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.min.css" rel="stylesheet" media="screen"/>
-<script src="//code.jquery.com/jquery.js"></script>
-<script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/jquery-url-parser/2.3.1/purl.min.js"></script>
+<!-- -*-HTML-*- -->
+<apply template="outerTemplate">
 <script>$(document).ready(function(){setupForm()})</script>
-</head>
-<body>
 <script>
 function setupForm(){
+  disableNavigation()
   var qs = $.url().param()
   if(qs.alloc == "True")
     $("a:contains('Allocation')").addClass("disabled")
@@ -17,13 +11,15 @@ function setupForm(){
     $("a:contains('Disbursal')").addClass("disabled")
 }
 </script>
-<div class="container">
 <div class="row">
+<div class="span10">
 <p> Please perform the following steps to complete your registration.
-<div><a href="/control/coop/settings" class="btn">Enter Allocation Settings</a>
+<div>
+<a href="/control/coop/settings" class="btn">Enter Allocation Settings</a>
 <a href="/control/coop/settings/disburse/schedule" class="btn">Enter Disbursal Schedule</a>
 </div>
 </div>
 </div>
-</body>
-</html>
+
+
+</apply>

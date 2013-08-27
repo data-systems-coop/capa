@@ -91,29 +91,23 @@ function redirect(to){ window.location.href = to; }
 
 <script>
 function updateNavigation(selectItem){
-  $(".navbar-inner ul li").removeClass("active")
-  $(".navbar-inner ul li:contains('" + selectItem + "')").addClass("active")
+  $("ul li").removeClass("active")
+  $("ul li:contains('" + selectItem + "')").addClass("active")
 }
 function disableNavigation(){
-  $(".navbar-inner ul li").removeClass("active")
-  $(".navbar-inner ul li").addClass("disabled")
+  $("ul li").removeClass("active")
+  $("ul li").addClass("disabled")
 }
 </script>
-<div class="navbar"> 
-<div class="navbar-inner">
-<a class="brand" href="#">CAPA</a>
-<ul class="nav">
-<li class="active"><a href="/control/coop/summary">Home</a></li>
-<li class="disabled"><a href="/control/financial/results">Financial Results</a></li>
+
+<ul class="nav nav-tabs">
+<li><a href="/control/coop/summary">Home</a></li>
+<li><a href="/control/financial/results">Financial Results</a></li>
 <li><a href="/control/members/patronage/period">Patronage</a></li>
 <li><a href="/control/members/accounts">Member Accounts</a></li>
-</ul>
-<ul class="nav pull-right">
 <li><a href="/control/coop/settings/show">Settings</a></li>
 <li><a href="/control/logout">Logout</a></li>
 </ul>
-</div>
-</div>
 
 
 <apply-content />

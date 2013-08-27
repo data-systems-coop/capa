@@ -3,6 +3,7 @@
 
 <script>
 $(document).ready(function() {
+  disableNavigation()
   setupForm()
 })
 </script>
@@ -59,7 +60,7 @@ function saveToHidden(){
     <div class="span5">
 	  <div class="form-actions">
 	    <button type="submit" class="btn btn-primary">Save</button>
-	    <a class="btn" href="/control/coopSummary">Cancel</a> 
+	    <a class="btn" href="/control/coop/summary">Cancel</a> 
 	  </div>
     </div>
 </div>

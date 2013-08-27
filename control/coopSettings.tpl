@@ -3,6 +3,7 @@
 
 <script>
 $(document).ready(function() {
+  disableNavigation()
   setupForm()
 })
 </script>

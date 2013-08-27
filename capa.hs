@@ -62,6 +62,14 @@ type TemplateStore = HeistState Identity
 redirect :: String -> ServerPartR
 redirect url = seeOther url $ toResponse ()
 
+templateFor :: TemplateStore -> B.ByteString -> ServerPartR
+templateFor hState name = do
+  let rendered = runIdentity $ renderTemplate hState name
+  maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
+  	(\(bldr,_) -> ok $ toResponse $ toByteString bldr)
+	rendered  	
+  
+
 generalTemplateResponse :: 
   TemplateStore -> PersistConnection -> Bool -> Bool -> 
   B.ByteString -> PG.Connection -> ServerPartR
@@ -72,17 +80,18 @@ generalTemplateResponse hState ref secure checkReg name dbCn =
     if secure && MB.isNothing mbSession
       then redirect "/control/enter"
       else do 
-        (alloc, disb) <- getCoopRegistrationState ref dbCn
-        if checkReg && (not alloc || not disb) 
-          then
-            redirect $ 
-              printf "/control/coop/register/partial?alloc=%s&disburse=%s" 
-                (show alloc) (show disb) 
-          else do              
-            let rendered = runIdentity $ renderTemplate hState name
-            maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
-  	          (\(bldr,_) -> ok $ toResponse $ toByteString bldr)
-	          rendered  	
+        if checkReg
+           then do 
+             (alloc, disb) <- getCoopRegistrationState ref dbCn
+             if (not alloc || not disb) 
+               then
+                 redirect $ 
+                   printf "/control/coop/register/partial?alloc=%s&disburse=%s" 
+                     (show alloc) (show disb) 
+               else
+                 templateFor hState name  
+           else
+             templateFor hState name
      
 
 resolveCoop :: String -> PersistConnection -> PG.Connection -> ServerPartR
@@ -125,7 +134,7 @@ capaApp ::
 capaApp ref connStr [resolveCoopCtrl, authControl] hState =
   let withCn = withConn connStr
       templateResponseWithState = generalTemplateResponse hState ref
-      unsecuredTemplateResponse nm = withCn $ templateResponseWithState False True nm
+      unsecuredTemplateResponse nm = withCn $ templateResponseWithState False False nm
       templateResponse nm = withCn $ templateResponseWithState True True nm
       noPartialTemplateResponse nm = withCn $ templateResponseWithState True False nm
   in msum [

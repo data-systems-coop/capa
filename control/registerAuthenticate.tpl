@@ -1,10 +1,6 @@
-<!DOCTYPE html>
-<html>
-<head>
-<link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.min.css" rel="stylesheet" media="screen"/>
-<script src="//code.jquery.com/jquery.js"></script>
-<script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
-<script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js"></script>
+<!-- -*-HTML-*- -->
+<apply template="outerTemplate">
+<script>$(document).ready(function(){ setupForm() })</script>
 <script>
 (function() {
     if (typeof window.janrain !== 'object') window.janrain = {};
@@ -32,6 +28,10 @@
     var s = document.getElementsByTagName('script')[0];
     s.parentNode.insertBefore(e, s);
 })();
+
+function setupForm(){
+  disableNavigation()
+}
 </script>
 <style type="text/css">
 .body {
@@ -40,13 +40,8 @@
 }
 </style>
 
-</head>
-<body>
-<div class="container">
 <div class="row">
 <div class="span5" id="janrainEngageEmbed"></div>
 </div>
-</div>
 
-</body>
-</html>
+</apply>

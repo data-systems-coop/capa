@@ -3,6 +3,7 @@
 <script>$(document).ready(function(){ setupForm() })</script>
 <script>
 function setupForm(){
+  updateNavigation('Home')
   loadMemberSummary()  
   loadCoop()
 }
