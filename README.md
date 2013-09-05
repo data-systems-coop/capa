@@ -22,6 +22,3 @@ Rebuild + Restart (I am losing stdout?):
 
     (bin/stop.sh; cabal install) && (rm nohup.out; bin/db-update.sh; bin/start.sh; sleep 0.5; tail nohup.out)
 
-For dev/build environment:
-Download liquibase, extract to bin/ext/liquibase 
-Download postgresql-java driver, extract to bin/ext/liquibase/lib
