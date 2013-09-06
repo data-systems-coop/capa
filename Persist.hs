@@ -4,6 +4,8 @@ where
   
 import Types
 import Utils
+import System.Log.Logger as LG
+import Text.Printf(printf)
 import Data.Time (fromGregorian, toGregorian, Day(..))
 
 import Data.Data            ( Data, Typeable ) 
@@ -46,13 +48,13 @@ coopFromRow [cpId,name,username,usageStart,usageEnd,calStart,calPrd] =
 
 coopGet :: PG.Connection -> Integer -> IO Cooperative
 coopGet dbCn cpId = do 
-  (row:_) <- DB.quickQuery dbCn 
+  (row:_) <- DB.quickQuery' dbCn 
     "select cpId, cpName, username, usageStart, usageEnd, (fiscalCalendarType).start, (fiscalCalendarType).prdType from Cooperative where cpId = ?" [DB.toSql cpId]
   return $ coopFromRow row
 
 coopGetFor :: PG.Connection -> OpenID -> IO (Maybe Cooperative)
 coopGetFor dbCn username = do 
-  rows <- DB.quickQuery dbCn 
+  rows <- DB.quickQuery' dbCn 
     "select cpId, cpName, username, usageStart, usageEnd, (fiscalCalendarType).start, (fiscalCalendarType).prdType from Cooperative where username = ?" [DB.toSql username]
   return $ fmap coopFromRow $ MB.listToMaybe rows
 
@@ -61,14 +63,14 @@ coopSave dbCn Cooperative{name=nm,username=usr,usageStart=st,fiscalCalendarType=
   do 
    let FiscalCalendarType{startf=fst,periodTypef=typ} = clTp
    DB.run dbCn "insert into Cooperative(cpid, cpName, username, usageStart, fiscalCalendarType) values ((select max(cpId)+1 from Cooperative),?,?,?,(?,?))" [DB.toSql nm, DB.toSql usr, DB.toSql st, DB.toSql fst, DB.toSql $ show typ] 
-   [[cpId]] <- DB.quickQuery dbCn "select max(cpId) from Cooperative" []
+   [[cpId]] <- DB.quickQuery' dbCn "select max(cpId) from Cooperative" []
    DB.commit dbCn
    return $ DB.fromSql cpId
 
    
 rsltGetAll :: PG.Connection -> Integer -> IO [FinancialResults]
 rsltGetAll dbCn cpId = do
-  DB.quickQuery dbCn 
+  DB.quickQuery' dbCn 
     "select (rsltOver).prdStart, (rsltOver).prdType, surplus, allocatedOn from FinancialResults where cpId = ?" [DB.SqlInteger cpId]
   >>= mapM (return . rsltFromRow)
 
@@ -77,7 +79,7 @@ rsltGetForOver ::
 rsltGetForOver dbCn cpId rsltOver = do 
   let FiscalPeriod{start=GregorianMonth yr mo, periodType=prdType} = rsltOver
   let prdStartDay = fromGregorian yr mo 1
-  rows <- DB.quickQuery dbCn
+  rows <- DB.quickQuery' dbCn
     "select (rsltOver).prdStart, (rsltOver).prdType, surplus, allocatedOn from FinancialResults where cpId = ? and (rsltOver).prdStart = ? and (rsltOver).prdType = ?"
     [DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
   let mb = MB.listToMaybe rows
@@ -126,14 +128,14 @@ ptrngGetFor
 ptrngGetFor dbCn cpId performedOver = do 
   let FiscalPeriod{start=GregorianMonth yr mo, periodType=prdType} = performedOver
   let prdStartDay = fromGregorian yr mo 1
-  res <- DB.quickQuery dbCn
+  res <- DB.quickQuery' dbCn
     "select m.mbrId, m.firstName, m.lastName, m.acceptedOn, p.work, p.skillWeightedWork, p.quality, p.revenueGenerated, p.performedOver from Member m left outer join (select * from WorkPatronage where (performedOver).prdStart = ? and (performedOver).prdType = ?) p using (cpId,mbrId) where cpId = ?"
     [DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType, DB.SqlInteger cpId]
   let ms = fmap mbrFromRow res
   let ps = 
         fmap 
          (\row -> 
-            let prow = drop 2 row
+            let prow = drop 4 row
             in if (head prow) == DB.SqlNull
                then Nothing
                else Just $ ptrngFromRow performedOver prow)
@@ -165,14 +167,14 @@ mbrFromRow (mbrId:firstName:lastName:acceptedOn:_) =
     (DB.fromSql acceptedOn)
   
 mbrGetAll :: PG.Connection -> Integer -> Day -> IO [(Member,Money)]
-mbrGetAll dbCn cpId asOf = do
-  (DB.quickQuery dbCn "select mbrId,firstName,lastName,acceptedOn, coalesce((select sum(amount) from MemberEquityAction where (cpId,mbrId) = (a.cpId,a.mbrId) and performedOn <= ?),0) as total from member a where cpId=?"
-     [DB.toSql asOf, DB.toSql cpId]) >>= 
+mbrGetAll dbCn cpId asOf =
+  (DB.quickQuery' dbCn "select mbrId,firstName,lastName,acceptedOn, coalesce((select sum(amount) from MemberEquityAction where (cpId,mbrId) = (a.cpId,a.mbrId) and performedOn <= ?),0) as total from member a where cpId=?"
+     [DB.toSql asOf, DB.toSql cpId]) >>=
     return . fmap (\r -> (mbrFromRow r,DB.fromSql $ r !! 4))
 
 mbrGet :: PG.Connection -> Integer -> Integer -> IO (Maybe Member)
 mbrGet dbCn cpId mbrId = 
-  DB.quickQuery dbCn "select mbrId,firstName,lastName,acceptedOn from member where (cpId,mbrId)=(?,?)"
+  DB.quickQuery' dbCn "select mbrId,firstName,lastName,acceptedOn from member where (cpId,mbrId)=(?,?)"
     [DB.SqlInteger cpId, DB.SqlInteger mbrId] >>= 
   return . fmap mbrFromRow . MB.listToMaybe
 
@@ -198,13 +200,13 @@ acctFrom (acctId:acctType:_) =
 
 acctGet :: PG.Connection -> Integer -> Integer -> Integer -> IO MemberEquityAccount
 acctGet dbCn cpId mbrId acctId = 
-  (DB.quickQuery dbCn "select acctId, acctType from MemberEquityAccount where (cpId,mbrId,acctId) = (?,?,?)" $ fmap DB.toSql [cpId, mbrId, acctId]) >>= 
+  (DB.quickQuery' dbCn "select acctId, acctType from MemberEquityAccount where (cpId,mbrId,acctId) = (?,?,?)" $ fmap DB.toSql [cpId, mbrId, acctId]) >>= 
   return . acctFrom . head 
 
 acctGetAll :: PG.Connection -> Integer -> IO (M.Map Member [MemberEquityAccount])
 acctGetAll dbCn cpId = 
-  DB.quickQuery dbCn "select m.mbrId, m.firstName, m.lastName, m.acceptedOn, acctId, acctType from Member m inner join MemberEquityAccount a using (mbrId,cpId) where m.cpId = ?" [DB.toSql cpId] >>=
-  return . M.fromListWith (++) . fmap (\r -> (mbrFromRow r, [acctFrom (drop 2 r)])) 
+  DB.quickQuery' dbCn "select m.mbrId, m.firstName, m.lastName, m.acceptedOn, acctId, acctType from Member m inner join MemberEquityAccount a using (mbrId,cpId) where m.cpId = ?" [DB.toSql cpId] >>= 
+    return . M.fromListWith (++) . fmap (\r -> (mbrFromRow r, [acctFrom (drop 4 r)]))
   
 prdToSql :: FiscalPeriod -> (DB.SqlValue, DB.SqlValue)
 prdToSql FiscalPeriod{start=GregorianMonth yr mo, periodType = prdType} = 
@@ -229,7 +231,7 @@ acnSaveToRolling ::
   -> IO ()
 acnSaveToRolling dbCn cpId mbrId resultOf acn = do
     ((acctId:_):_) <- 
-      DB.quickQuery dbCn "select acctId from MemberEquityAccount where (cpId,mbrId,acctType) = (?,?,?)" 
+      DB.quickQuery' dbCn "select acctId from MemberEquityAccount where (cpId,mbrId,acctType) = (?,?,?)" 
         [DB.SqlInteger cpId, DB.SqlInteger mbrId, DB.SqlString $ show RollingPatronage]
     let rollingAcctId = DB.fromSql acctId
     acnSaveFor dbCn cpId mbrId rollingAcctId (Just resultOf) acn
@@ -247,7 +249,7 @@ acnGetFor ::
   PG.Connection -> Integer -> Integer -> Integer -> 
     IO [(MemberEquityAction, Maybe FiscalPeriod)]
 acnGetFor dbCn cpId mbrId acctId = do
-  (DB.quickQuery dbCn "select acnType, amount, performedOn, (resultOf).prdStart, (resultOf).prdType from MemberEquityAction where (cpId,mbrId,acctId) = (?,?,?) order by performedOn asc"
+  (DB.quickQuery' dbCn "select acnType, amount, performedOn, (resultOf).prdStart, (resultOf).prdType from MemberEquityAction where (cpId,mbrId,acctId) = (?,?,?) order by performedOn asc"
     [DB.toSql cpId, DB.toSql mbrId, DB.toSql acctId]) >>= 
     return . 
       fmap 
@@ -263,7 +265,7 @@ acnExportFor dbCn cpId file =
 allocStngGet :: PG.Connection -> Integer -> IO (AllocationMethod, PatronageWeights) 
 allocStngGet dbCn cpId = do 
   (res:_) <- 
-    DB.quickQuery dbCn 
+    DB.quickQuery' dbCn 
       "select allocationMethod, work, skillWeightedWork, seniority, quality, revenueGenerated from CoopSettings where cpId = ?" 
       [DB.SqlInteger cpId]
   return 
@@ -309,7 +311,7 @@ snrtyMpngsSaveFor dbCn cpId mpngs = do
 
 snrtyMpngsGet :: PG.Connection -> Integer -> IO SeniorityMappings
 snrtyMpngsGet dbCn cpId =
-  (DB.quickQuery dbCn "select startYear, snrtyMpngLevel from SeniorityMappings where cpId = ? order by startYear asc" [DB.toSql cpId]) >>= 
+  (DB.quickQuery' dbCn "select startYear, snrtyMpngLevel from SeniorityMappings where cpId = ? order by startYear asc" [DB.toSql cpId]) >>= 
     return . M.fromList . fmap snrtyMpngFromRow
   
 snrtyMpngFromRow :: [DB.SqlValue] -> (SeniorityMappingEntry, SeniorityLevel)
@@ -318,7 +320,7 @@ snrtyMpngFromRow [startYear,level] =
 
 dsbSchedGet :: PG.Connection -> Integer -> IO DisbursalSchedule   
 dsbSchedGet dbCn cpId = do
-  res <- DB.quickQuery dbCn "select (afterAllocation).years, (afterAllocation).months, proportion from DisbursalSchedule where cpId = ?" [DB.SqlInteger cpId]
+  res <- DB.quickQuery' dbCn "select (afterAllocation).years, (afterAllocation).months, proportion from DisbursalSchedule where cpId = ?" [DB.SqlInteger cpId]
   return $ 
     fmap 
       (\(yr:mo:prop:_) -> 
@@ -336,6 +338,6 @@ dsbSchedSaveFor dbCn cpId schd = do
   
 coopRegisterState :: PG.Connection -> Integer -> IO (Bool, Bool)
 coopRegisterState dbCn cpId = do 
-  [[alloc,disb]] <- DB.quickQuery dbCn "select (select count(*) from CoopSettings where cpId = ?) > 0, (select count(*) from DisbursalSchedule where cpId = ?) > 0" 
+  [[alloc,disb]] <- DB.quickQuery' dbCn "select (select count(*) from CoopSettings where cpId = ?) > 0, (select count(*) from DisbursalSchedule where cpId = ?) > 0" 
     [DB.toSql cpId, DB.toSql cpId]
   return (DB.fromSql alloc, DB.fromSql disb)

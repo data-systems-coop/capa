@@ -76,17 +76,16 @@ remote support
 
 
 FUTURE
--period picker shift over time
+-more jquery plugin controls
+-introduction allocation object, store snapshot of config with it
+-get automated export working again
+-filter deactivated members, accounts
+-add account
 -automate test w/travis
 -document hosted release, refresh method
 -req, spec wiki (github)
 -basic user manual, dev manual
--get automated export working again
--document building prod env
--filter deactivated members, accounts
--add account
 -dep inj with reader monad
--more modules, by type
 -robust error handling
 -detailed debug,info logging
 -rationalize naming for services, templates
@@ -94,12 +93,12 @@ FUTURE
 -migrate to angular
 -apply info vis toolkit
 -load test, more detailed
+-more modules, by type
 -orm survey
--more jquery plugin controls
 -use slicker haskell/js solution, plus cooler js libs
 -more monads for cp id, ...
--introduction allocation object, store snapshot of config with it
 -tighter db constraints with checks, uniques
 -meta data for service -> url or remove names
 -improve selection of libraries used
--project financial health monitor, project dev health, dsi financial health
+-project financial health, dev health, dsi financial health status
+-period picker shift over time
