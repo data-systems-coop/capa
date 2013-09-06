@@ -16,6 +16,7 @@ window.jslogger = new JSLogger({apiKey: "5202804a4d1c96595a000025", track:true})
 <script src="//cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.1.3/js/bootstrap-datepicker.min.js"></script>
 <script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js"></script>
 <script src="//cdnjs.cloudflare.com/ajax/libs/jquery-url-parser/2.3.1/purl.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.mask/0.9.0/jquery.mask.min.js"></script>
 <script>
 
 //library
@@ -42,19 +43,15 @@ function fiscalPeriodPicker(id, initial){
     $(id).change()
   })
 }
+function formatMember(mbr){
+ return sprintf("%s %s", mbr.firstName, mbr.lastName)
+}
 function addPeriod(per, id){ 
   var opt = 
     sprintf("<option value='%s'>%s</option>", 
             JSON.stringify(per), 
             formatFiscalPeriod(per))
   $(id).append(opt)
-}
-function seniorityPicker(id){ //get rid of this altogether
-  $.getJSON("/coop/settings/allocate/seniority/levels", function(levels){
-    levels.forEach(function(lev){
-      $(id).append(sprintf("<option value='%s'>%s</option>",lev[0].start, lev[1]))
-    })
-  })
 }
 function qualityPicker(id){
   var levels =  //should come from server
@@ -86,6 +83,12 @@ var allocMethodFields =
   ["work", "skillWeightedWork", "seniority", "quality", "revenueGenerated"]
 function redirect(to){ window.location.href = to; }
 </script>
+<style type="text/css">
+.container {
+  margin: 0 auto;
+  max-width: 850px;
+}
+</style>
 </head>
 <body>
 
@@ -100,6 +103,7 @@ function disableNavigation(){
 }
 </script>
 
+<div class="container">
 <ul class="nav nav-tabs">
 <li><a href="/control/coop/summary">Home</a></li>
 <li><a href="/control/financial/results">Financial Results</a></li>
@@ -111,6 +115,7 @@ function disableNavigation(){
 
 
 <apply-content />
+</div>
 
 </body>
 </html>

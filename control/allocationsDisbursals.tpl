@@ -26,7 +26,8 @@ function loadAllocationsDisbursals(over){
 function appendMemberAllocation(member, allocAction){
   $("#result").append(
     sprintf("<tr id='m%s'><td>%s</td><td>%s</td><td>%s</td></tr>", 
-      member.memberId, member.firstName, allocAction.amount, allocAction.actionType))
+      member.memberId, formatMember(member), 
+      allocAction.amount, allocAction.actionType))
 }
 function loadDisbursals(member, alloc, containerId){
   $.post("/member/equity/disburse", 

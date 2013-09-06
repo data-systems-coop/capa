@@ -26,7 +26,7 @@ function setupForm(){
     var members = $.map(memAccts, function(el){ return el[0] })
     members.forEach(function(m){
          $("#member").append(
-            sprintf("<option value='%s'>%s</option>", m.memberId, m.firstName))})
+            sprintf("<option value='%s'>%s</option>", m.memberId, formatMember(m)))})
     $("#member").change()
   })
 }

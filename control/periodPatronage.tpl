@@ -45,7 +45,7 @@ function loadMemberPatronage(memberPatronage, fieldInfo){
 function appendPatronage(memberPatronage, fieldInfo){
   var member = memberPatronage[0]
   var patronage = memberPatronage[1]
-  var row = sprintf("<tr><td>%s</td>", member.firstName)
+  var row = sprintf("<tr><td>%s</td>", formatMember(member))
   fieldInfo.forEach(function(el){    
     row += sprintf("<td>%s</td>", patronage[el.ptrngFldLabel])
   })
@@ -73,7 +73,7 @@ function setupUnrecordedPicker(members){
 }
 function appendMember(member){
   $("#memberId").append(
-     sprintf("<option value='%s'>%s</option>", member.memberId, member.firstName))
+     sprintf("<option value='%s'>%s</option>", member.memberId, formatMember(member)))
 }
 </script>
 <div class="row">

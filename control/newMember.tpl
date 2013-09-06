@@ -11,23 +11,24 @@ function setupForm(){
   })
 }
 </script>
-<div class="row">
-<div class="span3">
-
 <form method="POST" action="/member"> 
-<label for="firstName">First Name</label>
-<input type="text" class="input-small" name='firstName'>
-<label for="lastName">Last Name</label>
-<input type="text" class="input-small" name='lastName'>
-<label for="acceptedOn">Accepted on</label>
-<input type="text" class="input-small" name='acceptedOn'>
+
+<div class="row">
+<div class="span6">
+<input type="text" name='firstName' placeholder="First Name">
+<input type="text" name='lastName' placeholder="Last Name">
+</div>
+</div>
+
+<div class="row">
+<div class="span6">
+<input type="text" class="input-small" name='acceptedOn' placeholder="Accepted on">
 <div class="form-actions">
 <button type="submit" class="btn btn-primary">Add</button>
 <a class="btn" href="/control/coop/summary">Cancel</a>
 </div>
+</div>
+</div>
+
 </form>
-
-</div>
-</div>
-
 </apply>

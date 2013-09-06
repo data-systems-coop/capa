@@ -33,8 +33,8 @@ function loadMember(m){
   var member = m[0]
   var bal = m[1]
   $("#memberSummary").append(
-    sprintf("<tr><td>%s %s</td><td>$%s</td><td>%s</td></tr>",
-             member.firstName, member.lastName, bal, 
+    sprintf("<tr><td>%s</td><td>$%s</td><td>%s</td></tr>",
+             formatMember(member), bal, 
              formatGregorianDay(member.acceptedOn)))
 }
 </script>

@@ -15,21 +15,22 @@ $(document).ready(function() {
 function loadParameters(){
   var qs = $.url().param()
   $.getJSON("/member/" + qs.member, function(mem){
-    $("#memberName").append(mem.firstName)
+    $("#memberName").append(formatMember(mem))
   })
   $.getJSON(
      sprintf("/member/equity/account?mbrId=%s&acctId=%s", qs.member, qs.acct), 
      function(acct){
        $("#accountName").append(acct.accountType)
      })
-  $("#mbrId").val(qs.member)
-  $("#acctId").val(qs.acct)
+  $("[name='mbrId']").val(qs.member)
+  $("[name='acctId']").val(qs.acct)
 }
 function setupForm(){
-  fiscalPeriodPicker("#resultOf")
-  $("#resultOf").prepend("<option value=''>None</option>")
-  actionTypePicker("#actionType")
-  datePickerDflt("#performedOn")
+  $("[name='amount']").mask("999000", {reverse:true})
+  fiscalPeriodPicker("[name='resultOf']")
+  $("[name='resultOf']").prepend("<option value=''>None</option>")
+  actionTypePicker("[name='actionType']")
+  datePickerDflt("[name='performedOn']")
   $('form').ajaxForm({  // nice to have use URL to reload account one came from
        success: function(){
          redirect("/control/members/accounts")
@@ -39,22 +40,19 @@ function setupForm(){
 }
 </script>
 <form method="POST" action="/member/equity/history"> 
-
-<label>Member</label>
-<p id="memberName"></p><input type="hidden" name="mbrId" id="mbrId">
-<label>Account</label>
-<p id="accountName"></p><input type="hidden" name="acctId" id="acctId">
+<p id="memberName"></p><input type="hidden" name="mbrId">
+<p id="accountName"></p><input type="hidden" name="acctId">
 <label for="actionType">Action Type</label>
-<select name='actionType' id='actionType'></select>
-<label for="amount">Amount</label>
-<input type="text" class="input-mini" name='amount' id="amount">
-<label for="performedOn">Performed on</label>
-<input type="text" name='performedOn' id="performedOn">
+<select name='actionType'></select>
+<div class="input-prepend">
+  <span class="add-on">$</span>
+  <input type="text" class="input-mini" name='amount' placeholder="Amount">
+</div>
+<input type="text" name='performedOn' placeholder="Performed on" class="input-small">
 <label for="resultOf">Result of</label>
-<select name="resultOf" id="resultOf"></select>
+<select name="resultOf"></select>
 <div class="form-actions">
-<button type="submit" class="btn btn-primary">Save</button>
-<a class="btn">Cancel</a> 
+<button type="submit" class="btn btn-primary">Save</button> <a class="btn">Cancel</a> 
 </div>
 </form>
 
