@@ -34,23 +34,41 @@
 })();
 </script>
 <style type="text/css">
-.body {
-  padding-top: 100px;
+body {
+  padding-top: 10px;
   background-color: #f5f5f5;
+}
+.container {
+  margin: 0 auto;
+  max-width: 775px;
+}
+.container > hr {
+  margin: 30px 0;
 }
 #register {
   border: 1px solid rgb(192,192,192);
   border-radius: 10px 10px 10px 10px;
-        margin: 0 auto 20px;
-        background-color: rgb(255,255,255);
+  margin: 0 auto 20px;
+  background-color: rgb(255,255,255);
   height: 156px;
 }
-
+#janrainEngageEmbed {
+  height: 156px;
+}
 </style>
 
 </head>
 <body>
 <div class="container">
+
+<div class="row">
+  <div class="span5"><h4 class="muted">Coop Accounting Patronage Application</h4></div>
+  <div class="span2">
+  by <a href="http://datasystems.coop"><img width=112 height=33 src="/img/dsilogo_225x66.gif"></a>
+  </div>
+</div>
+<hr>
+
 <div class="row">
 <div class="span3 offset1" id="register">
   <div style="position:relative; top: 50%; text-align:center">
@@ -59,22 +77,52 @@
 </div>
 <div class="span5" id="janrainEngageEmbed"></div>
 </div>
+<hr>
+
+<div class="row">
+<div class="span4">
+  <h4>Motives</h4>
+  <ul>
+   <li>make a small contribution to the worker coop community
+   <li>learn deeper about accounting software needs in worker coops
+   <li>practice creating and maintaining a software service
+  </ul>
+</div>
+<div class="span4">
+  <h4>Intentions</h4>
+  <ul>
+    <li>free to use*
+    <li>usable set of basic features
+    <li>reliable
+    <li>technologically up-to-date implementation*
+    <li>open source
+    <li>easy to export data, leave the system
+    <li>no plan to add major features unless we choose to expand this project in the future or users approach us to fund adding major features
+  </ul>
+</div>
 </div>
 
 <div class="row">
-<div class="span8">
-  <p>Welcome to the [C]oop [A]ccounting [P]atronage [A]pplication, brought to you by <img src="/img/dsilogo_225x66.gif">
-  <p>
-  <p>A few people have asked us what our motivations and intentions are for this project. Our motivations are to make a small contribution to the worker coop community and to use this as a way to learn deeper about accounting software needs in worker coops. Also, we used it as a training ground for understanding the various tasks involved in establishing a software service. We intend to provide a usable set of basic features and try to ensure that the service is stable and reliable. We would like to support the hosting of this software service for free into the forseeable future, as well as perform basic upkeep to the implementation to keep it technologically current. This is contingent on the financial health of Data Systems. We are also committed to keeping the implementation open source. We have incorporated a feature to easily export all of your data, should you decide to leave the system.
-  <p>We intend for this application to be used freely by worker cooperatives. If you find you like this application and are motivated to make a donation, you can learn more about the costs involved in producing and maintaining it, and a method of donating <a href='https://www.wepay.com/donations/capa-development-operations-maintenance'>here</a>.
-  <p>Credits: CAPA Advisory Board(MH,...), Amy, Developers/team initial version(Katie, Jason, ...), Demoing(Alvarado, A Bookkeeping Coop, Roberta), Development(Aaron,Kanishka,), Systems Admin(Casey,..).
-  <p>You can obtain the source code for a local installation <a href='https://github.com/data-systems-coop/capa'>here</a>. If you seek to significantly modify the system to suit your local installation, or you would like support in setting up a local instance of CAPA, please contact us for availability and rates. Also, once we have settled on a useful set of basic features, we do not intend to add any major features unless we decide to make this a priority for a future contribution or users approaches us to fund adding a feature.
-  <p>Technology Platform
-  <img src="/img/200px-Platform.svg.png"><img src="/img/80x16_2.gif">
-  <img src="/img/happstack.jpg"><img src="/img/poweredby3.png">
-  <img src="/img/powered_by_GNU_Emacs.jpeg"><img src="/img/poweredbygnulinux.jpg">
+  <p><small>*into the foreseeable future, contingent on the financial health of Data Systems</small>
+  <dl class="dl-horizontal">
+  <dt>Supporting CAPA</dt>
+  <dd><small>If you find this application useful, you can <a href='https://www.wepay.com/donations/capa-development-operations-maintenance'>learn more</a> about the costs involved in producing and maintaining it, and a method of donating.</small></dd>
+  <dt>Local Installations</dt>
+  <dd><small>Obtain the <a href='https://github.com/data-systems-coop/capa'>source code</a>. For support in setting up or extensively modifying a local instance of CAPA, please contact Data Systems for availability and rates. </small></dd>
+  <dt>Credits</dt>
+  <dd><small>Karin Anderson, Kanishka Azimi, Scott Bradley, Aaron Desrochers, Will Desrochers, Roberta Eidman, Yochai Gal, Melissa Hoover, Koumbit staff, Amy Johnson, Mike Leung, Casey Lyons, Jason Mott, Katie Ormiston, Cody Rock, Marc Rudnick, Colin Sagan, Sarah Snider, Jason Storer, Charles Uchu Strader.</small></dd>
+  </dl>
 </div>
+
+<div class="row">
+  <img width=100 height=35 src="/img/200px-Platform.svg.png">
+  <img src="/img/80x16_2.gif">
+  <img width=128 height=74 src="/img/happstack.jpg">
+  <img width=41 height=62 src="/img/poweredby3.png">
+  <img width=57 height=22 src="/img/powered_by_GNU_Emacs.jpeg">
+  <img width=40 height=60 src="/img/poweredbygnulinux.jpg">
 </div>  
-  
+
+</div>  
 </body>
 </html>
