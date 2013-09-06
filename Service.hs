@@ -43,14 +43,15 @@ import Data.Acid.Advanced   ( query', update' )
 import Control.Monad ( void )
 
 
--- for provided year, provide 2 years back and forward
+-- for provided day, provide 2 years back and forward
+-- should take offset back or forward
 getLatestFiscalPeriods :: PersistConnection -> PG.Connection -> ServerPartR
 getLatestFiscalPeriods ref dbCn = do
   cpId <- getSessionCoopId ref
   Cooperative{fiscalCalendarType=ft} <- liftIO $ coopGet dbCn cpId
   let FiscalCalendarType{startf=startMonth, periodTypef=pt} = ft
-  UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
-  let (endYear,_,_) = toGregorian $ addGregorianYearsClip 5 day
+  today <- liftIO getCurrentDay
+  let (endYear,_,_) = toGregorian $ addGregorianYearsClip 5 today
   let end = fromGregorian endYear startMonth 1
   let stepBack = 
         if pt == Year 
@@ -238,8 +239,8 @@ getMember ref dbCn =
 getMembers :: PersistConnection -> PG.Connection -> ServerPartR
 getMembers ref dbCn = do 
   cpId <- getSessionCoopId ref
-  UTCTime{utctDay=day} <- liftIO getCurrentTime
-  (liftIO $ mbrGetAll dbCn cpId day) >>= okJSResp
+  today <- liftIO getCurrentDay
+  (liftIO $ mbrGetAll dbCn cpId today) >>= okJSResp
 
 getAllFinancialResultsDetail :: PersistConnection -> PG.Connection -> ServerPartR
 getAllFinancialResultsDetail ref dbCn = do 
@@ -273,7 +274,7 @@ handleAllocateToMembers
      ServerPart (FiscalPeriod, (M.Map Member MemberEquityAction))
 handleAllocateToMembers ref dbCn =  
   do cpId <- getSessionCoopId ref
-     UTCTime{utctDay=day,utctDayTime=_} <- liftIO getCurrentTime
+     today <- liftIO getCurrentDay
      overStr <- lookBS "over"
      let Just allocateOver = decode overStr
      Just res <- liftIO $ rsltGetForOver dbCn cpId allocateOver
@@ -281,7 +282,7 @@ handleAllocateToMembers ref dbCn =
      (name, parameters) <- liftIO $ allocStngGet dbCn cpId
      return $ 
        (allocateOver, 
-        allocateEquityFor res (M.map MB.fromJust patronage) parameters day)
+        allocateEquityFor res (M.map MB.fromJust patronage) parameters today)
 
 postAllocationDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
 postAllocationDisbursal ref dbCn = 
@@ -297,8 +298,8 @@ postAllocationDisbursal ref dbCn =
            (acnSaveToRolling dbCn cpId mbrId allocateOver)
            (scheduleDisbursalsFor allocAcn disbursalSchedule))
        (M.toList me)
-     UTCTime{utctDay=day} <- liftIO getCurrentTime
-     (liftIO $ rsltUpdateAllocated dbCn cpId allocateOver day) >>= okJSResp
+     today <- liftIO getCurrentDay
+     (liftIO $ rsltUpdateAllocated dbCn cpId allocateOver today) >>= okJSResp
         
 
 getActionsForMemberEquityAcct :: PersistConnection -> PG.Connection -> ServerPartR

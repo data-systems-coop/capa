@@ -6,6 +6,7 @@ import Data.Aeson(ToJSON, encode)
 import Numeric (readFloat)  -- num util
 import qualified Data.ByteString.Char8 as B  -- + templates
 import qualified Data.Text.Lazy as T  -- req, serialize
+import qualified Data.Time as DT 
   
 lookString :: String -> ServerPart String
 lookString = fmap T.unpack . lookText
@@ -27,3 +28,12 @@ type ServerPartR = ServerPart Response
 
 okJSResp :: ToJSON a => a -> ServerPartR
 okJSResp = ok . toResponse . JSONData
+
+getCurrentDay :: IO DT.Day
+getCurrentDay = fmap DT.utctDay DT.getCurrentTime
+
+--start from current day
+--  find closest quarter or year start prior to today
+--  compute 2 years forward and back. 
+--  enun starting from 2 years back
+--  reverse
