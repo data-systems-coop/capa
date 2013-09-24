@@ -1,10 +1,7 @@
--automate backup(casey)
--create monitoring(casey), schedule backup(casey)
--conn pool(casey)
 -<performance/memory basic check> --------- DONE
 
 -form validation failures/errors (entry forms) - important still
--domain name, nginx forward (casey)
+-domain name
 
 --------------------
 
@@ -102,3 +99,4 @@ FUTURE
 -improve selection of libraries used
 -project financial health, dev health, dsi financial health status
 -period picker shift over time
+-conn pool?
