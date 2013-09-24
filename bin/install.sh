@@ -10,6 +10,11 @@ createdb capa_multi_tenant -O capa_multi_tenant
 -----CONFIGURE DB AUTHENTICATION-----
 -- edit hba file to have a line allow client server: host ... md5
 -- edit postgresql listen_addresses to allow client server
+-----CREATE BACKUP, ROTATE SCRIPTS, SCHEDULE-------
+-- pg_dump with date in ~postgres/bin/backup_capa_db.sh, chmod a+x
+-- rm -f with date -7days in ~postgres/bin/purge_backups_capa.sh, chmod a+x
+-- mkdir /var/backups/postgres, chmod 77...
+-- change crontab add  0 0 * * * postgres ~.. && ~/.. 
 
 
 ON APPLICATION SERVER 
@@ -34,6 +39,8 @@ mkdir ~/bin; cd ~/bin; ln -s ~/.cabal/bin/capa --create sym link
 ----CREATE PROD CONFIG FILE, ADD DB, LOGGING, SERVICE, UI RESOURCE CONFIGS----
 -- fix config variables and config file name: db*. change name of config file in capa.hs. 
 -- change liquibase credntials in db-update.sh and db-update-smoketest.sh
+----UPDATE HARDCODED CONFIGS ----
+-- fix registerAuthenticate.tpl and enter.tpl to use www.camp.coop
 ----REMOVE IRRELEVANT CONFIGS, SCRIPTS----------
 rm bin/db-nuke.sh etc/dev.txt
 -- INSTALL SCHEMA MANAGEMENT UTILITY -------------
@@ -47,3 +54,6 @@ sudo apt-get install openjdk-7-jre -- install java! as root
 bin/db-update-smoketest.sh
 -- PERFORM COMPLETE STOP, MIGRATE DB, START CYCLE
 (bin/stop.sh; cabal install) && (rm nohup.out; bin/db-update.sh; bin/start.sh; sleep 0.5; tail nohup.out)
+-- SETUP ROOT LAUNCH
+-- as root, add link from ~capa/bin/capa to /usr/bin
+(bin/stop.sh) || (rm nohup.out; bin/db-update.sh; bin/start.sh; sleep 0.5; tail nohup.out)
