@@ -17,8 +17,8 @@ ON APPLICATION SERVER
 sudo apt-get install haskell-platform 
 ----INSTALL DB CLIENT SOFTWARE---------------
 sudo apt-get postgresql-client postgresql-server-dev-9.1
-----INSTALL SOURCE CONTROL CLIENT------------
-sudo apt-get install git 
+----INSTALL SOURCE CONTROL CLIENT, ADD USER------------
+sudo apt-get install git git-cola
 ----CLONE REPO--------------------------
 -- mkdir dev; cd dev
 -- git clone ....

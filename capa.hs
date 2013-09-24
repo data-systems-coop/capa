@@ -9,11 +9,13 @@ import Persist
 import Service
 
 import Happstack.Lite
-   (ok, method, serve, dir, path, 
+   (ok, method, dir, path, 
     Method(..), nullDir, notFound, ToMessage(..), seeOther,
     CookieLife(Session), mkCookie, addCookies, expireCookie, lookCookieValue, 
     ServerPart)
 import Happstack.Server.Routing (dirs)
+import Happstack.Server(decodeBody, defaultBodyPolicy, simpleHTTPWithSocket, nullConf,
+                        bindPort, Conf(..))
 
 import Network.HTTP.Conduit(simpleHttp)
 import Control.Monad.IO.Class (liftIO)
@@ -55,6 +57,8 @@ import qualified Data.Maybe as MB
 
 import Happstack.Server.RqData(HasRqData(..), RqEnv)
 import Happstack.Lite(serveDirectory, Browsing(..))
+
+import System.Posix.User (setUserID, UserEntry(..), getUserEntryForName)
 
 --------------APP CONTROLLER------------------------
 type TemplateStore = HeistState Identity
@@ -132,12 +136,14 @@ withConn connString body = do -- use bracket instead
 capaApp :: 
   PersistConnection -> String -> [ServerPartR] -> TemplateStore -> ServerPartR
 capaApp ref connStr [resolveCoopCtrl, authControl] hState =
-  let withCn = withConn connStr
-      templateResponseWithState = generalTemplateResponse hState ref
-      unsecuredTemplateResponse nm = withCn $ templateResponseWithState False False nm
-      templateResponse nm = withCn $ templateResponseWithState True True nm
-      noPartialTemplateResponse nm = withCn $ templateResponseWithState True False nm
-  in msum [
+ let withCn = withConn connStr
+     templateResponseWithState = generalTemplateResponse hState ref
+     unsecuredTemplateResponse nm = withCn $ templateResponseWithState False False nm
+     templateResponse nm = withCn $ templateResponseWithState True True nm
+     noPartialTemplateResponse nm = withCn $ templateResponseWithState True False nm
+ in do 
+ decodeBody (defaultBodyPolicy "/tmp/" 0 1000 1000)
+ msum [
     dir "img" $ serveDirectory EnableBrowsing [] "control/images"
     --js here?
     --partial path failurs like missing parameter?
@@ -238,6 +244,9 @@ main = do
         (printf "host=%s port=%d dbname=%s user=%s password=%s"
               dbHost dbPort dbName dbUser dbPass)
   -- config should select debug or not
+  let conf = nullConf { port = 80 }
+  socket <- bindPort conf
+  getUserEntryForName "capa" >>= setUserID . userID
   x <- openLocalState g0
   ehs <- runEitherT $ do 
      templateRepo <- loadTemplates templateDir
@@ -250,7 +259,7 @@ main = do
      initHeist hCfg
   either 
     (error . concat) 
-    (serve Nothing . 
+    (simpleHTTPWithSocket socket conf . 
      capaApp 
        x 
        connString
