@@ -13,6 +13,11 @@ $(document).ready(function() {
 function setupForm(){
   // get alloc methods..
   $.getJSON("/allocate/methods", function(ms){
+    $("[name='workw']").mask("900")
+    $("[name='skillWeightedWorkw']").mask("900")
+    $("[name='seniorityw']").mask("900")
+    $("[name='reveneueGeneratedw']").mask("900")
+    $("[name='qualityw']").mask("900")
     $.each(ms, function(i, m){
       $("#allocMethods").append(
        sprintf("<label class='radio inline'>" + 
@@ -29,18 +34,28 @@ function setupForm(){
            $("." + e).show()
           }
         })
+        //if fieldInfo length == 1, then set weight = 100
       })
    })
    $("input[value='ProductiveHours']").prop('checked',true)
-   $("input[name='allocationMethod']").change()
+   $("[name='allocationMethod']").change()
   })
   loadSeniorityLevels([{"start":0,"end":2},{"start":3,"end":5}])
   setupAddLevel()
+  //scrap this, just use regular decimal number instead of %
+  $('form').submit(function(){
+    $("[name='workw']").val(intToPercent("[name='workw']"))
+    $("[name='skillWeightedWorkw']").val(intToPercent("[name='skillWeightedWorkw']"))
+    $("[name='seniorityw']").val(intToPercent("[name='seniorityw']"))
+    $("[name='revenueGeneratedw']").val(intToPercent("[name='revenueGeneratedw']"))
+    $("[name='qualityw']").val(intToPercent("[name='qualityw']"))
+  })
   $('form').ajaxForm({
        success: function(){
 	 window.location.href = sprintf("/control/coop/summary")
        }
     })
+  //need to undo conversion on form failure
 }
 </script>
 <form method="POST" action="/coop/settings/allocate"> 
@@ -51,7 +66,7 @@ function setupForm(){
           <div class="work">
 	  <label for="workw">Productive Hours Weight</label>
 	  <div class="input-append">
-	    <input type="text" class="input-mini" name='workw' id="workw">
+	    <input type="text" class="input-mini" name='workw'>
 	    <span class="add-on">%</span>
 	  </div>
           </div>
@@ -59,7 +74,7 @@ function setupForm(){
           <div class="skillWeightedWork">
 	  <label for="skillWeightedWorkw">Wages Weight</label>
 	  <div class="input-append">
-	    <input type="text" class="input-mini" name='skillWeightedWorkw' id="skillWeightedWorkw">
+	    <input type="text" class="input-mini" name='skillWeightedWorkw'>
 	    <span class="add-on">%</span>
 	  </div>
           </div>
@@ -67,23 +82,23 @@ function setupForm(){
           <div class="seniority">
 	  <label for="seniorityw">Seniotity Weight</label>
 	  <div class="input-append">
-	    <input type="text" class="input-mini" name='seniorityw' id="seniorityw">
+	    <input type="text" class="input-mini" name='seniorityw'>
 	    <span class="add-on">%</span>
 	  </div>
           </div>
 
           <div class="revenueGenerated">
-	  <label for="workw">Revenue Generated Weight</label>
+	  <label for="revenueGeneratedw">Revenue Generated Weight</label>
 	  <div class="input-append">
-	    <input type="text" class="input-mini" name='revenueGeneratedw' id="revenueGeneratedw">
+	    <input type="text" class="input-mini" name='revenueGeneratedw'>
 	    <span class="add-on">%</span>
 	  </div>
           </div>
 
           <div class="quality">
-	  <label for="workw">Quality Weight</label>
+	  <label for="qualityw">Quality Weight</label>
 	  <div class="input-append">
-	    <input type="text" class="input-mini" name='qualityw' id="qualityw">
+	    <input type="text" class="input-mini" name='qualityw'>
 	    <span class="add-on">%</span>
 	  </div>
           </div>

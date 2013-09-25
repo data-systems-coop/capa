@@ -1,5 +1,9 @@
 {-# Language DeriveDataTypeable, TemplateHaskell, TypeFamilies #-}
-module Persist 
+module Persist ( 
+  module Persist, 
+  module Persist.MemberEquityAccount,
+  module Persist.Member
+)
 where
   
 import Types
@@ -20,6 +24,9 @@ import qualified Database.HDBC as DB
 
 import qualified Data.Maybe as MB
 import Control.Monad ( void )
+
+import Persist.MemberEquityAccount
+import Persist.Member
 
 type PersistConnection = AcidState Globals
 
@@ -62,7 +69,7 @@ coopSave :: PG.Connection -> Cooperative -> IO Integer
 coopSave dbCn Cooperative{name=nm,username=usr,usageStart=st,fiscalCalendarType=clTp}=
   do 
    let FiscalCalendarType{startf=fst,periodTypef=typ} = clTp
-   DB.run dbCn "insert into Cooperative(cpid, cpName, username, usageStart, fiscalCalendarType) values ((select max(cpId)+1 from Cooperative),?,?,?,(?,?))" [DB.toSql nm, DB.toSql usr, DB.toSql st, DB.toSql fst, DB.toSql $ show typ] 
+   DB.run dbCn "insert into Cooperative(cpid, cpName, username, usageStart, fiscalCalendarType) values ((select coalesce(max(cpId),0)+1 from Cooperative),?,?,?,(?,?))" [DB.toSql nm, DB.toSql usr, DB.toSql st, DB.toSql fst, DB.toSql $ show typ] 
    [[cpId]] <- DB.quickQuery' dbCn "select max(cpId) from Cooperative" []
    DB.commit dbCn
    return $ DB.fromSql cpId
@@ -161,28 +168,6 @@ ptrngExportFor dbCn cpId file =
     DB.run dbCn ("COPY (select * from Member m inner join WorkPatronage p using (cpId, mbrId) where cpId = " ++ (show cpId) ++ " order by mbrId, (performedOver).prdStart) TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []
 
 
-mbrFromRow :: [DB.SqlValue] -> Member
-mbrFromRow (mbrId:firstName:lastName:acceptedOn:_) = 
-  Member (DB.fromSql firstName) (DB.fromSql lastName) (DB.fromSql mbrId)
-    (DB.fromSql acceptedOn)
-  
-mbrGetAll :: PG.Connection -> Integer -> Day -> IO [(Member,Money)]
-mbrGetAll dbCn cpId asOf =
-  (DB.quickQuery' dbCn "select mbrId,firstName,lastName,acceptedOn, coalesce((select sum(amount) from MemberEquityAction where (cpId,mbrId) = (a.cpId,a.mbrId) and performedOn <= ?),0) as total from member a where cpId=?"
-     [DB.toSql asOf, DB.toSql cpId]) >>=
-    return . fmap (\r -> (mbrFromRow r,DB.fromSql $ r !! 4))
-
-mbrGet :: PG.Connection -> Integer -> Integer -> IO (Maybe Member)
-mbrGet dbCn cpId mbrId = 
-  DB.quickQuery' dbCn "select mbrId,firstName,lastName,acceptedOn from member where (cpId,mbrId)=(?,?)"
-    [DB.SqlInteger cpId, DB.SqlInteger mbrId] >>= 
-  return . fmap mbrFromRow . MB.listToMaybe
-
-mbrSave :: PG.Connection -> Integer -> Member -> IO ()
-mbrSave dbCn cpId Member{firstName=first,lastName=last,acceptedOn=acc}=do
-  DB.run dbCn "insert into Member values (?,(select max(mbrId)+1 from Member where cpId=?),?,?,?)" 
-    [DB.toSql cpId, DB.toSql cpId, DB.toSql first, DB.toSql last, DB.toSql acc]
-  DB.commit dbCn
 
 ptrngFromRow :: FiscalPeriod -> [DB.SqlValue] -> WorkPatronage
 ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) = 
@@ -194,20 +179,6 @@ ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) =
     (DB.fromSql revenueGenerated)
     performedOver
 
-acctFrom :: [DB.SqlValue] -> MemberEquityAccount
-acctFrom (acctId:acctType:_) = 
-  MemberEquityAccount (DB.fromSql acctId) (read $ DB.fromSql acctType)
-
-acctGet :: PG.Connection -> Integer -> Integer -> Integer -> IO MemberEquityAccount
-acctGet dbCn cpId mbrId acctId = 
-  (DB.quickQuery' dbCn "select acctId, acctType from MemberEquityAccount where (cpId,mbrId,acctId) = (?,?,?)" $ fmap DB.toSql [cpId, mbrId, acctId]) >>= 
-  return . acctFrom . head 
-
-acctGetAll :: PG.Connection -> Integer -> IO (M.Map Member [MemberEquityAccount])
-acctGetAll dbCn cpId = 
-  DB.quickQuery' dbCn "select m.mbrId, m.firstName, m.lastName, m.acceptedOn, acctId, acctType from Member m inner join MemberEquityAccount a using (mbrId,cpId) where m.cpId = ?" [DB.toSql cpId] >>= 
-    return . M.fromListWith (++) . fmap (\r -> (mbrFromRow r, [acctFrom (drop 4 r)]))
-  
 prdToSql :: FiscalPeriod -> (DB.SqlValue, DB.SqlValue)
 prdToSql FiscalPeriod{start=GregorianMonth yr mo, periodType = prdType} = 
   (DB.toSql $ fromGregorian yr mo 1, DB.toSql $ show prdType)

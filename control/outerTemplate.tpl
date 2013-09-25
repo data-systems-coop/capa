@@ -12,11 +12,16 @@ window.jslogger = new JSLogger({apiKey: "5202804a4d1c96595a000025", track:true})
 <link href="//cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.1.3/css/bootstrap-datepicker.min.css" rel="stylesheet"/>
 <script src="//code.jquery.com/jquery.js"></script>
 <script src="//malsup.github.io/jquery.form.js"> </script> 
-<script src="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/css/bootstrap.min.css"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.1.3/js/bootstrap-datepicker.min.js"></script>
-<script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/jquery-url-parser/2.3.1/purl.min.js"></script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.mask/0.9.0/jquery.mask.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/js/bootstrap.min.js">
+</script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.1.3/js/bootstrap-datepicker.min.js">
+</script>
+<script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js">
+</script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery-url-parser/2.3.1/purl.min.js">
+</script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.mask/0.9.0/jquery.mask.min.js">
+</script>
 <script>
 
 //library
@@ -75,12 +80,19 @@ function actionTypePicker(id){
   })
 }
 function monthPicker(id){
-  [1,2,3,4,5,6,7,8,9,10,11,12].forEach(function(m){
-    $(id).append(sprintf("<option value='%s'>%s</option>", m, m))
+  [[1,"January"],[2,"February"],[3,"March"],[4,"April"],
+    [5,"May"],[6,"June"],[7,"July"],[8,"August"],[9,"September"],
+    [10,"October"],[11,"November"],[12,"December"]].forEach(function(m){
+    $(id).append(sprintf("<option value='%s'>%s</option>", m[0], m[1]))
   }) 
 }
 var allocMethodFields = 
   ["work", "skillWeightedWork", "seniority", "quality", "revenueGenerated"]
+function intToPercent(id){
+  //if no value, set to 0
+  return parseInt($(id).val()) / 100
+}
+
 function redirect(to){ window.location.href = to; }
 </script>
 <style type="text/css">

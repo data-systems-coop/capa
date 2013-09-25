@@ -225,10 +225,13 @@ getAllMemberPatronage ref dbCn =
     let (mp, mu) = M.partition MB.isJust mpAll
     okJSResp $ (mp, M.keys mu)
 
-putMember :: PersistConnection -> PG.Connection -> ServerPartR
-putMember ref dbCn = do 
+putMemberAndAccounts :: PersistConnection -> PG.Connection -> ServerPartR
+putMemberAndAccounts ref dbCn = do 
   cpId <- getSessionCoopId ref
-  parseObject >>= (liftIO . mbrSave dbCn cpId) >>= okJSResp
+  mem <- parseObject 
+  (liftIO $ do 
+    mbrId <- mbrSave dbCn cpId mem
+    acctSaveDefault dbCn cpId mbrId) >>= okJSResp
      
 getMember :: PersistConnection -> PG.Connection -> ServerPartR
 getMember ref dbCn =
@@ -346,14 +349,15 @@ exportAll ref dbCn = do
   cpId <- getSessionCoopId ref
   UTCTime{utctDayTime=time1} <- liftIO getCurrentTime
   let time = show time1
-  liftIO $ DR.createDirectory ("/tmp/" ++ time) FL.accessModes
-  liftIO $ SP.system ("chmod 777 /tmp/" ++ time)
-  liftIO $ acnExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaActions.csv") 
-  liftIO $ ptrngExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaPatronage.csv")
-  liftIO $ rsltExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaResults.csv")
-  liftIO $ stngExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaSettings.csv")
-  arch <- 
-    liftIO $ ZP.addFilesToArchive [ZP.OptRecursive] ZP.emptyArchive [("/tmp/" ++ time)] 
+  arch <- liftIO $ do 
+    DR.createDirectory ("/tmp/" ++ time) FL.accessModes
+    SP.system ("chmod 777 /tmp/" ++ time) -- on server
+    acnExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaActions.csv") 
+    ptrngExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaPatronage.csv")
+    rsltExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaResults.csv")
+    stngExportFor dbCn cpId ("/tmp/" ++ time ++ "/capaSettings.csv")
+    -- copy -R from server /tmp/time to local /tmp
+    ZP.addFilesToArchive [ZP.OptRecursive] ZP.emptyArchive [("/tmp/" ++ time)] 
   ok $ toResponseBS (CB.pack "application/zip") $ ZP.fromArchive arch
 
 --authenticate util--

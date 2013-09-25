@@ -145,7 +145,7 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
  decodeBody (defaultBodyPolicy "/tmp/" 0 1000 1000)
  msum [
     dir "img" $ serveDirectory EnableBrowsing [] "control/images"
-    --js here?
+  , dir "js" $ serveDirectory EnableBrowsing [] "control/js"
     --partial path failurs like missing parameter?
   , dir "control" $ msum [ --remove control 
          dir "coop" $ msum [
@@ -191,7 +191,7 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
           method GET >> (withCn $ getAllMembersEquityAccounts ref)
       , dir "patronage" $ method GET >> (withCn $ getAllMemberPatronage ref)]
   , dir "member" $ msum [ 
-         method POST >> (withCn $ putMember ref)
+         method POST >> (withCn $ putMemberAndAccounts ref)
        , method GET >> (withCn $ getMember ref)
        , method POST >> (withCn $ putMemberPatronage ref)
        , dir "equity" $ msum [
@@ -223,7 +223,8 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
       dir "method" $ path $ (okJSResp . fieldDetails . read) -- GET
     , dir "methods" $ method GET >> (okJSResp $ fmap show allocMethods)]
   , dir "export.zip" $ method GET >> (withCn $ exportAll ref)
-  , dir "logout" $ expireSession ref]
+  , dir "logout" $ expireSession ref
+  , redirect "/control/enter"]
 
                                           
 main = do
@@ -232,6 +233,7 @@ main = do
   LG.infoM "main" "started"
   val <- CF.readfile CF.emptyCP "etc/dev.txt"
   let cp = forceEither val
+  let getConfig = forceEither . CF.get cp "DEFAULT" 
   let dbHost = (forceEither $ CF.get cp "DEFAULT" "dbhost")::String
   let dbPort = (forceEither $ CF.get cp "DEFAULT" "dbport")::Integer
   let dbName = (forceEither $ CF.get cp "DEFAULT" "dbname")::String
@@ -244,9 +246,10 @@ main = do
         (printf "host=%s port=%d dbname=%s user=%s password=%s"
               dbHost dbPort dbName dbUser dbPass)
   -- config should select debug or not
-  let conf = nullConf { port = 80 }
+  let conf = nullConf { port = getConfig "webport"}
   socket <- bindPort conf
-  getUserEntryForName "capa" >>= setUserID . userID
+  getUserEntryForName (forceEither $ CF.get cp "DEFAULT" "webprocessuser") 
+    >>= setUserID . userID
   x <- openLocalState g0
   ehs <- runEitherT $ do 
      templateRepo <- loadTemplates templateDir

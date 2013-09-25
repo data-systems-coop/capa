@@ -15,11 +15,11 @@ $(document).ready(function() {
 function loadParameters(){
   var qs = $.url().param()
   $("#username").append(qs.username)
-  $("input[name='username']").val(qs.username)
+  $("[name='username']").val(qs.username)
 }
 function setupForm(){
-  monthPicker("select[name='clTpStart']")
-  periodTypePicker("select[name='clTpPeriodType']")
+  monthPicker("[name='clTpStart']")
+  periodTypePicker("[name='clTpPeriodType']")
   $('form').ajaxForm({
        success: function(){
          window.location.href = "/control/coop/summary"

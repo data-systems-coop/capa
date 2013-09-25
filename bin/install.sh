@@ -55,5 +55,5 @@ bin/db-update-smoketest.sh
 -- PERFORM COMPLETE STOP, MIGRATE DB, START CYCLE
 (bin/stop.sh; cabal install) && (rm nohup.out; bin/db-update.sh; bin/start.sh; sleep 0.5; tail nohup.out)
 -- SETUP ROOT LAUNCH
--- as root, add link from ~capa/bin/capa to /usr/bin
+-- as root, ln -s ~capa/bin/capa /usr/bin
 (bin/stop.sh) || (rm nohup.out; bin/db-update.sh; bin/start.sh; sleep 0.5; tail nohup.out)

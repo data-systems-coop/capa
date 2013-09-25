@@ -10,7 +10,7 @@ $(document).ready(function() {
 
 <script>
 function setupForm(){
-  loadDisbursalSchedule([[{"years":1,"months":2},0.6]])
+  loadDisbursalSchedule([])
   setupAddDisbursal()
   $('form').ajaxForm({
        success: function(){
@@ -31,11 +31,24 @@ function loadDisbursalSchedule(s){
   $("#disbursalScheduleRows").empty()
   s.forEach(function(d){
     $("#disbursalScheduleRows").append(
-       sprintf("<tr>%s<td>X</td></tr>", formatDisbursal(d)))
+       sprintf("<tr>%s<td><a href='#' onclick='removeDisbursal(%s);'>x</a></td></tr>", 
+              formatDisbursal(d), 
+              JSON.stringify(d)))
   })
 }
 function saveToHidden(){
   $("#disbursalSchedule").val(JSON.stringify($("#disbursalScheduleRows").data("d")))
+}
+function removeDisbursal(d){
+  /* figure which one to remove, remove
+  var disb = 
+      [[{years: parseInt($("#years").val()), months: parseInt($("#months").val())}, 
+       intToPercent("#proportion")]]
+  */
+  var arr = $("#disbursalScheduleRows").data("d")
+  loadDisbursalSchedule(
+    arr.filter(
+      function(v){v.years == d.years && v.months == d.months}))
 }
 </script>
 <div class="row">
@@ -52,7 +65,7 @@ function saveToHidden(){
 	    </thead>
  	    <tbody id="disbursalScheduleRows"></tbody>
 	  </table>
-	  <button type="button" class="btn btn-small" data-toggle="modal" data-target="#addModal">Add Disbursal</button>
+	  <button type="button" class="btn btn-small" data-toggle="modal" data-target="#addModal">Add Disbursal</button> 
     </div>
 </div>	  
 
@@ -86,13 +99,13 @@ function setupAddDisbursal(){
   $("#addButton").click(function(){
     var disb = 
       [[{years: parseInt($("#years").val()), months: parseInt($("#months").val())}, 
-       $("#proportion").val() / 100]]
+       intToPercent("#proportion")]]
     var arr = $("#disbursalScheduleRows").data("d")
     loadDisbursalSchedule(arr.concat(disb))
     $("#addModal").modal('hide')
   })
 }
-</script>	
+</script>
 <div id="addModal" class="modal hide fade" tabindex="-1" 
 	     role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
   <div class="modal-header">

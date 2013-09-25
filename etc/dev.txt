@@ -7,3 +7,5 @@ authuribase = https://rpxnow.com/api/v2/auth_info?apiKey=f3333416cb3a1af4761a647
 jslogserver = unknown
 servicesuri = http://localhost:8000
 templatedir = control
+webprocessuser = kanishka
+webport = 8000
