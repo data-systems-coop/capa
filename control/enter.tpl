@@ -62,7 +62,7 @@ body {
 <div class="container">
 
 <div class="row">
-  <div class="span5"><h4 class="muted">Coop Accounting Patronage Application</h4></div>
+  <div class="span5"><h4 class="muted">Coop Accounting for Member Patronage</h4></div>
   <div class="span2">
   by <a href="http://datasystems.coop"><img width=112 height=33 src="/img/dsilogo_225x66.gif"></a>
   </div>
@@ -105,10 +105,10 @@ body {
 <div class="row">
   <p><small>*into the foreseeable future, contingent on the financial health of Data Systems</small>
   <dl class="dl-horizontal">
-  <dt>Supporting CAPA</dt>
+  <dt>Supporting CAMP</dt>
   <dd><small>If you find this application useful, you can <a href='https://www.wepay.com/donations/capa-development-operations-maintenance'>learn more</a> about the costs involved in producing and maintaining it, and a method of donating.</small></dd>
   <dt>Local Installations</dt>
-  <dd><small>Obtain the <a href='https://github.com/data-systems-coop/capa'>source code</a>. For support in setting up or extensively modifying a local instance of CAPA, please contact Data Systems for availability and rates. </small></dd>
+  <dd><small>Obtain the <a href='https://github.com/data-systems-coop/capa'>source code</a>. For support in setting up or extensively modifying a local instance of CAMP, please contact Data Systems for availability and rates. </small></dd>
   <dt>Credits</dt>
   <dd><small>Karin Anderson, Kanishka Azimi, Scott Bradley, Aaron Desrochers, Will Desrochers, Roberta Eidman, Yochai Gal, Melissa Hoover, Koumbit staff, Amy Johnson, Mike Leung, Casey Lyons, Jason Mott, Katie Ormiston, Cody Rock, Marc Rudnick, Colin Sagan, Sarah Snider, Jason Storer, Charles Uchu Strader.</small></dd>
   </dl>
