@@ -63,7 +63,7 @@ scheduleDisbursalsFor
       addGregorianMonthsClip months $ addGregorianYearsClip years allocatedOn
     disbursed = round . ((toRational amount) *)
     makeDisburse on amt = 
-      MemberEquityAction{actionType=DistributeInstallment,amount=amt,performedOn=on}
+      MemberEquityAction{actionType=DistributeInstallment,amount=(-amt),performedOn=on}
 
 runningBalance :: [MemberEquityAction] -> [(MemberEquityAction, Money)]
 runningBalance acns = zip acns $ scanl1 (+) $ fmap amount acns
