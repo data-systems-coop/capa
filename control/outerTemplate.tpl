@@ -37,18 +37,40 @@ function formatFiscalPeriod(per){
 function formatGregorianDay(day){
  return sprintf('%s/%s/%s', day[1], day[2], day[0])
 }
-// add buttons to go back, forward
-function fiscalPeriodPicker(id, initial){
+function fiscalPeriodPicker(id, initial){// add buttons to go back, forward
   $.getJSON("/fiscal/periods",function(periods){
     $.each(periods,function(i,period){
       addPeriod(period, id)
     })
     if(initial != undefined){
       $(id).val(initial)
+    }else{
+      var current = new Date()
+      $(id).val(JSON.stringify(closestPeriod(current, periods)))
     }
     $(id).change()
   })
 }
+function closestPeriod(asOf, periods){ //require periods.length > 0
+  var diffs = 
+    $.map(
+      periods, 
+      function(p){
+        return [[Math.abs(asOf.getTime() - gregorianMonthToDate(p.start).getTime()), p]]
+      })
+  var closest = diffs[0]
+  $.each(diffs, function(_,d){
+    if(d[0] < closest[0])
+      closest = d
+    else
+      closest = closest
+  })
+  return closest[1]
+}
+function gregorianMonthToDate(g){
+  return new Date(g.year,g.month-1)
+}
+
 function formatMember(mbr){
  return sprintf("%s %s", mbr.firstName, mbr.lastName)
 }
