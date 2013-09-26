@@ -6,44 +6,36 @@
 <script>
 function setupForm(){
   var memAcctMap = new Object()
-  $("#member").change(function(sel){
+  $("[name='member']").change(function(){
+    var sel = $("[name='member']").val()
     var accts = memAcctMap[sel]
-    $("#acct").empty()
+    $("[name='acct']").empty()
     accts.forEach(function(a){
-      $("#acct").append(sprintf("<option value='%s'>%s</option>", a.ida, a.accountType))
+      $("[name='acct']").append(sprintf("<option value='%s'>%s</option>", a.ida, a.accountType))
     })
-    $("#acct").change()
+    $("[name='acct']").change()
   })
-  $("#acct").change(function(){
-    reloadActions($("#member").val(), $("#acct").val())
+  $("[name='acct']").change(function(){
+    reloadActions($("[name='member']").val(), $("[name='acct']").val())
   })
   $.getJSON("/members/equity/accounts", function(memAccts){
     memAccts.forEach(function(el){
-      var mem = el[0]
+      var mbrId = el[0].memberId
       var accts = el[1]
-      memAcctMap[mem] = accts
+      memAcctMap[mbrId] = accts
     })
     var members = $.map(memAccts, function(el){ return el[0] })
     members.forEach(function(m){
-         $("#member").append(
+         $("[name='member']").append(
             sprintf("<option value='%s'>%s</option>", m.memberId, formatMember(m)))})
-    $("#member").change()
+    $("[name='member']").change()
   })
 }
 </script>
 
 <form method="GET" action="/control/member/account/action/add">
-<div class="row">
-<div class="span3">
-<select name="member" id="member"></select>
-</div>
-</div>
-
-<div class="row">
-<div class="span4">
-<select name="acct" id="acct"></select>
-</div>
-</div>
+<div class="row"><div class="span3"><select name="member"></select></div></div>
+<div class="row"><div class="span4"><select name="acct"></select></div></div>
 
 <script>
 function reloadActions(mbrId, acctId){
@@ -71,7 +63,7 @@ function loadAction(a){
 <table class="table">
 <thead>
   <tr><th>Performed on</th><th>Type</th><th>Amount</th>
-  <th>Result of</th><th>Balance</th></tr>
+      <th>Result of</th><th>Balance</th></tr>
 </thead>
 <tbody id="result"></tbody>
 </table>
@@ -80,9 +72,7 @@ function loadAction(a){
 </div>
 
 <div class="row">
-<div class="span2">
-<button type="submit" class="btn btn-primary">Add Action</button>
-</div>
+<div class="span2"><button type="submit" class="btn btn-primary">Add Action</button></div>
 </div>
 </form>
 
