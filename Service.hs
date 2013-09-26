@@ -285,7 +285,7 @@ handleAllocateToMembers ref dbCn =
      (name, parameters) <- liftIO $ allocStngGet dbCn cpId
      return $ 
        (allocateOver, 
-        allocateEquityFor res (M.map MB.fromJust patronage) parameters today)
+        allocateEquityFor res today (parameters, (M.map MB.fromJust patronage)))
 
 postAllocationDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
 postAllocationDisbursal ref dbCn = 
