@@ -38,6 +38,6 @@ acctSaveDefault dbCn cpId mbrId =
         DB.run dbCn 
         "insert into MemberEquityAccount values (?,?,(select coalesce(max(acctId),0)+1 from MemberEquityAccount),?)" [DB.toSql cpId, DB.toSql mbrId, DB.toSql $ show acctType] 
   in do 
-    insertAcct Committed
-    insertAcct RollingPatronage
+    insertAcct BuyInAcct
+    insertAcct RollingPatronageAcct
     DB.commit dbCn

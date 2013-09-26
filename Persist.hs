@@ -203,7 +203,8 @@ acnSaveToRolling ::
 acnSaveToRolling dbCn cpId mbrId resultOf acn = do
     ((acctId:_):_) <- 
       DB.quickQuery' dbCn "select acctId from MemberEquityAccount where (cpId,mbrId,acctType) = (?,?,?)" 
-        [DB.SqlInteger cpId, DB.SqlInteger mbrId, DB.SqlString $ show RollingPatronage]
+        [DB.SqlInteger cpId, DB.SqlInteger mbrId, 
+         DB.SqlString $ show RollingPatronageAcct]
     let rollingAcctId = DB.fromSql acctId
     acnSaveFor dbCn cpId mbrId rollingAcctId (Just resultOf) acn
     

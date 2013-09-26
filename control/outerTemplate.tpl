@@ -119,9 +119,9 @@ function disableNavigation(){
 <div class="container">
 <ul class="nav nav-tabs">
 <li><a href="/control/coop/summary">Home</a></li>
-<li><a href="/control/financial/results">Financial Results</a></li>
-<li><a href="/control/members/patronage/period">Patronage</a></li>
 <li><a href="/control/members/accounts">Member Accounts</a></li>
+<li><a href="/control/members/patronage/period">Patronage</a></li>
+<li><a href="/control/financial/results">Financial Results</a></li>
 <li><a href="/control/coop/settings/show">Settings</a></li>
 <li><a href="/control/logout">Logout</a></li>
 </ul>

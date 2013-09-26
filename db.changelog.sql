@@ -179,3 +179,13 @@ alter table Member
        alter column lastName set not null
      , alter column acceptedOn set not null
      , add constraint member_uq UNIQUE (cpId, firstName, lastName, acceptedOn);
+
+
+--changeset kazimi:rename-committed context:prod
+update MemberEquityAccount 
+   set acctType = 
+       case acctType when 'Committed' then 'BuyInAcct' 
+       	    	     when 'RollingPatronage' then 'RollingPatronageAcct' 
+      end 
+where acctType in ('Committed', 'RollingPatronage');
+

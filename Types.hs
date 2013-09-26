@@ -49,7 +49,7 @@ data MemberEquityAccount = MemberEquityAccount {  -- acct
   accountType::EquityAccountType
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-data EquityAccountType = Committed | RollingPatronage
+data EquityAccountType = BuyInAcct | RollingPatronageAcct
    deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 data Member = Member { -- mbr
@@ -156,4 +156,4 @@ res1 = [FinancialResults
           (FiscalPeriod (GregorianMonth 2012 1) Year) 
           200
           $ Just (fromGregorian 2011 1 2)] 
-acct1 = MemberEquityAccount 1 RollingPatronage
+acct1 = MemberEquityAccount 1 RollingPatronageAcct
