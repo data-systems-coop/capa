@@ -5,10 +5,11 @@ cabal-version:  >= 1.2
 
 executable capa 
   build-depends:	base, happstack-lite, blaze-html, text, 
-                        containers, mtl, acid-state >= 0.8 && < 0.9, safecopy, aeson, heist >= 0.11.1 && < 0.12 , either,
+                        containers, mtl, acid-state >= 0.8 && < 0.9, safecopy, aeson, 
+                        heist >= 0.11.1 && < 0.12 , either,
                         blaze-builder, bytestring, time, transformers, 
                         vector, attoparsec, happstack-server, http-conduit, 
                         HDBC, HDBC-postgresql, old-locale, ConfigFile, MissingH,
-                        hslogger, zip-archive, unix, process
+                        hslogger, zip-archive, unix, process, data-default
   hs-source-dirs:	.
   main-is:		capa.hs

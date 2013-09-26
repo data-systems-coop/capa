@@ -17,6 +17,7 @@ import qualified Data.List as L
 import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
                   addGregorianMonthsClip, addGregorianYearsClip)   
 import Data.Map as M
+import Data.Default
 import Data.Aeson (encode, decode)
 import Data.Acid.Advanced   ( query', update' )
 import Control.Monad.IO.Class (liftIO)  
@@ -72,13 +73,13 @@ getCooperative ref dbCn = do
 putCooperative :: PersistConnection -> PG.Connection -> ServerPartR
 putCooperative ref dbCn = do
   coop <- parseObject  
-  cpId <- liftIO $ coopSave dbCn coop 
-  coop <- liftIO $ coopGet dbCn cpId
+  coop <- liftIO $ do 
+    cpId <- coopSave dbCn coop 
+    coopGet dbCn cpId
   attachSession ref coop
   okJSResp ()
 
-getCoopRegistrationState :: 
-  PersistConnection -> PG.Connection -> ServerPart (Bool,Bool) 
+getCoopRegistrationState :: PersistConnection -> PG.Connection -> ServerPart (Bool,Bool)
 getCoopRegistrationState ref dbCn = do
   cpId <- getSessionCoopId ref
   liftIO $ coopRegisterState dbCn cpId 
@@ -156,56 +157,43 @@ lookPatronageWeights method = do
   case method of 
     ProductiveHours -> do
       workw <- lookRational "workw"
-      return 
-        PatronageWeights{workw=workw,skillWeightedWorkw=0, 
-     	        seniorityw = 0, qualityw = 0, 
-		revenueGeneratedw = 0}
+      return def{workw=workw}
     Wages -> do
       skillWeightedWorkw <- lookRational "skillWeightedWorkw"
-      return 
-        PatronageWeights{workw=0,skillWeightedWorkw=skillWeightedWorkw, 
-     	        seniorityw = 0, qualityw = 0, 
-		revenueGeneratedw = 0}
+      return def{workw=0,skillWeightedWorkw=skillWeightedWorkw}
     _ -> do
       workw <- lookRational "workw"
       skillWeightedWorkw <- lookRational "skillWeightedWorkw"
       case method of 
         SimpleMix -> 
           return 
-            PatronageWeights{workw=workw,skillWeightedWorkw=skillWeightedWorkw, 
-                             seniorityw = 0, qualityw = 0, 
-                             revenueGeneratedw = 0}
+            def{workw=workw,skillWeightedWorkw=skillWeightedWorkw}
         _ -> do
           seniorityw <- lookRational "seniorityw"
-          return 
-            PatronageWeights{workw=workw,skillWeightedWorkw=skillWeightedWorkw, 
-                             seniorityw = seniorityw, qualityw = 0, 
-                             revenueGeneratedw = 0}
+          return def{workw=workw,skillWeightedWorkw=skillWeightedWorkw,
+                     seniorityw = seniorityw}
+
 
 lookPatronage :: AllocationMethod -> FiscalPeriod -> ServerPart WorkPatronage
 lookPatronage method performedOver = 
   case method of 
     ProductiveHours -> do
       work <- lookRead "work"
-      return WorkPatronage{work=work,skillWeightedWork=0,seniority=0,quality=0,
-                           revenueGenerated=0,performedOver=performedOver}
+      return def{work=work,performedOver=performedOver}
     Wages -> do
       skillWeightedWork <- lookRead "skillWeightedWork"
-      return WorkPatronage{work=0,skillWeightedWork=skillWeightedWork,seniority=0,
-                           quality=0,revenueGenerated=0,performedOver=performedOver}
+      return def{skillWeightedWork=skillWeightedWork,performedOver=performedOver}
     _ -> do
       work <- lookRead "work"
       skillWeightedWork <- lookRead "skillWeightedWork"
       case method of 
         SimpleMix -> 
-          return WorkPatronage{work=work,skillWeightedWork=skillWeightedWork,
-                               seniority=0,quality=0,revenueGenerated=0,
-                               performedOver=performedOver}
+          return def{work=work,skillWeightedWork=skillWeightedWork,
+                     performedOver=performedOver}
         _ -> do
           seniority <- lookRead "seniority"
-          return WorkPatronage{work=work,skillWeightedWork=skillWeightedWork,
-                               seniority=seniority,quality=0,revenueGenerated=0,
-                               performedOver=performedOver}
+          return def{work=work,skillWeightedWork=skillWeightedWork,
+                               seniority=seniority,performedOver=performedOver}
 
 putMemberPatronage :: PersistConnection -> PG.Connection -> ServerPartR
 putMemberPatronage ref dbCn = 
@@ -242,8 +230,7 @@ getMember ref dbCn =
 getMembers :: PersistConnection -> PG.Connection -> ServerPartR
 getMembers ref dbCn = do 
   cpId <- getSessionCoopId ref
-  today <- liftIO getCurrentDay
-  (liftIO $ mbrGetAll dbCn cpId today) >>= okJSResp
+  (liftIO $ getCurrentDay >>= mbrGetAll dbCn cpId) >>= okJSResp
 
 getAllFinancialResultsDetail :: PersistConnection -> PG.Connection -> ServerPartR
 getAllFinancialResultsDetail ref dbCn = do 
@@ -277,32 +264,34 @@ handleAllocateToMembers
      ServerPart (FiscalPeriod, (M.Map Member MemberEquityAction))
 handleAllocateToMembers ref dbCn =  
   do cpId <- getSessionCoopId ref
-     today <- liftIO getCurrentDay
      overStr <- lookBS "over"
      let Just allocateOver = decode overStr
-     Just res <- liftIO $ rsltGetForOver dbCn cpId allocateOver
-     patronage <- liftIO $ ptrngGetFor dbCn cpId allocateOver     
-     (name, parameters) <- liftIO $ allocStngGet dbCn cpId
-     return $ 
-       (allocateOver, 
-        allocateEquityFor res today (parameters, (M.map MB.fromJust patronage)))
+     liftIO $ do 
+       today <- getCurrentDay
+       Just res <- rsltGetForOver dbCn cpId allocateOver
+       patronage <- ptrngGetFor dbCn cpId allocateOver     
+       (name, parameters) <- allocStngGet dbCn cpId
+       return $
+         (allocateOver, 
+          allocateEquityFor res today (parameters, (M.map MB.fromJust patronage)))
 
 postAllocationDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
 postAllocationDisbursal ref dbCn = 
   do cpId <- getSessionCoopId ref
      (allocateOver, me) <- handleAllocateToMembers ref dbCn
-     liftIO $ LG.infoM "Service.postAllocationDisbursal" $ 
-       printf "%d. alloc for %s" cpId (show allocateOver)     
-     disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId     
-     liftIO $ mapM_
-       (\(Member{memberId=mbrId}, allocAcn) -> do
-         acnSaveToRolling dbCn cpId mbrId allocateOver allocAcn
-         mapM_ 
-           (acnSaveToRolling dbCn cpId mbrId allocateOver)
-           (scheduleDisbursalsFor allocAcn disbursalSchedule))
-       (M.toList me)
-     today <- liftIO getCurrentDay
-     (liftIO $ rsltUpdateAllocated dbCn cpId allocateOver today) >>= okJSResp
+     (liftIO $ do 
+       LG.infoM "Service.postAllocationDisbursal" $ 
+         printf "%d. alloc for %s" cpId (show allocateOver)            
+       disbursalSchedule <- dsbSchedGet dbCn cpId     
+       mapM_
+         (\(Member{memberId=mbrId}, allocAcn) -> do
+           acnSaveToRolling dbCn cpId mbrId allocateOver allocAcn
+           mapM_ 
+             (acnSaveToRolling dbCn cpId mbrId allocateOver)
+             (scheduleDisbursalsFor allocAcn disbursalSchedule))
+         (M.toList me)
+       today <- getCurrentDay
+       rsltUpdateAllocated dbCn cpId allocateOver today) >>= okJSResp
         
 
 getActionsForMemberEquityAcct :: PersistConnection -> PG.Connection -> ServerPartR
@@ -344,6 +333,7 @@ putEquityAction ref dbCn = do
   (liftIO $ acnSaveFor dbCn cpId mbrId acctId overVal acn) >>= okJSResp
  
 
+--CHANGE TO CLIENT SIDE CREATION IN MEMORY
 exportAll :: PersistConnection -> PG.Connection -> ServerPartR
 exportAll ref dbCn = do
   cpId <- getSessionCoopId ref

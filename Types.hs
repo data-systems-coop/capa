@@ -8,7 +8,7 @@ import Data.Time(Day)
 import Data.Ratio ((%))
 import Data.Time(fromGregorian)
 import qualified Data.Map as M
--- import Data.Default 
+import Data.Default
 
 data WorkPatronage = WorkPatronage { -- ptrng
   work::Integer, 
@@ -123,6 +123,14 @@ skillWeightedWorkFieldDetail =  PatronageFieldDetail "skillWeightedWork"
 seniorityFieldDetail = PatronageFieldDetail "seniority" 
 qualityFieldDetail = PatronageFieldDetail "quality" 
 revenueGeneratedFieldDetail = PatronageFieldDetail "revenueGenerated" 
+
+instance Default PatronageWeights where 
+  def = PatronageWeights{workw=1,skillWeightedWorkw=def,seniorityw=def,qualityw=def,
+                         revenueGeneratedw=def}
+instance Default WorkPatronage where
+  def = WorkPatronage{work=0,skillWeightedWork=0,
+                               seniority=0,quality=0,revenueGenerated=0,
+                               performedOver=FiscalPeriod (GregorianMonth 1970 1) Year}
 
 -- sample data
 (f1,f2) = 
