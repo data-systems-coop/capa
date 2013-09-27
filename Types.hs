@@ -1,7 +1,10 @@
 {-# Language DeriveDataTypeable #-}
-module Types
-    
-where 
+module Types(     
+  module Types,
+  module Type.Base,
+  module Type.WorkPatronage,
+  module Type.ActionEvent
+) where 
 
 import Data.Data(Data, Typeable)  -- allow persist, serialize
 import Data.Time(Day)
@@ -10,14 +13,9 @@ import Data.Time(fromGregorian)
 import qualified Data.Map as M
 import Data.Default
 
-data WorkPatronage = WorkPatronage { -- ptrng
-  work::Integer, 
-  skillWeightedWork::Integer,
-  seniority::Integer,
-  quality::Integer,
-  revenueGenerated::Integer,
-  performedOver::FiscalPeriod
-} deriving (Show, Eq, Ord, Data, Typeable)
+import Type.Base
+import Type.WorkPatronage
+import Type.ActionEvent
 
 data PatronageWeights = PatronageWeights { -- wght
   workw::Rational,
@@ -33,7 +31,7 @@ data MemberEquityAction = MemberEquityAction { -- acn
   performedOn::Day
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-data EquityActionType = 
+data EquityActionType =   --migrate all actions in db, + name changes
   BuyIn |
   AllocatePatronageRebate | 
   DistributeInstallment |
@@ -43,7 +41,7 @@ data EquityActionType =
   DistributeMilestone |
   AllocateDelayedNonQualified
    deriving (Show, Read, Eq, Ord, Data, Typeable)  
-     
+            
 data MemberEquityAccount = MemberEquityAccount {  -- acct
   ida::Integer,
   accountType::EquityAccountType
@@ -63,7 +61,7 @@ data Member = Member { -- mbr
 data FinancialResults = FinancialResults { -- rslt
   over::FiscalPeriod,
   surplus::Money,   --net-inc
-  allocatedOn::Maybe Day
+  allocatedOn::Maybe Day  -- REMOVE
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 data Cooperative = Cooperative { -- cp
@@ -81,24 +79,14 @@ data SeniorityMappingEntry = SeniorityMappingEntry {
 type SeniorityLevel = Integer
 type SeniorityMappings = M.Map SeniorityMappingEntry SeniorityLevel
 
-data FiscalPeriod = FiscalPeriod {  -- prd
-  start::GregorianMonth,
-  periodType::PeriodType
-} deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-data GregorianMonth = GregorianMonth Year Month
-  deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-type Year = Integer
-type Month = Int
 
 data FiscalCalendarType = FiscalCalendarType{ -- clTp
   startf::Month,
   periodTypef::PeriodType
 } deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-data PeriodType = Year | Quarter
-  deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 type OpenID = String
 type Money = Integer
@@ -124,11 +112,7 @@ seniorityFieldDetail = PatronageFieldDetail "seniority"
 qualityFieldDetail = PatronageFieldDetail "quality" 
 revenueGeneratedFieldDetail = PatronageFieldDetail "revenueGenerated" 
 
-instance Default PeriodType where
-  def = Year
 
-instance Default GregorianMonth where
-  def = GregorianMonth 1970 1
   
 instance Default GregorianDuration where
   def = GregorianDuration 0 0
@@ -136,11 +120,6 @@ instance Default GregorianDuration where
 instance Default AllocationMethod where
   def = ProductiveHours
 
-instance Default FiscalPeriod where
-  def = FiscalPeriod{start=def,periodType=Year}
-
-instance Default Day where
-  def = fromGregorian 1970 1 1
   
 instance Default EquityActionType where
   def = AllocatePatronageRebate
@@ -149,9 +128,6 @@ instance Default PatronageWeights where
   def = PatronageWeights{workw=1,skillWeightedWorkw=def,seniorityw=def,qualityw=def,
                          revenueGeneratedw=def}
 
-instance Default WorkPatronage where
-  def = WorkPatronage{work=0,skillWeightedWork=0,seniority=0,quality=0,revenueGenerated=0,
-                      performedOver=def}
 
 instance Default MemberEquityAction where
   def = MemberEquityAction{actionType=def, amount=def,performedOn=def}

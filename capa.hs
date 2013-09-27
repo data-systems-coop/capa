@@ -6,7 +6,7 @@ import Utils
 import Domain
 import Serialize
 import Persist
-import Service
+import Service.Service
 
 import Happstack.Lite
    (ok, method, dir, path, 

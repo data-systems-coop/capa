@@ -1,6 +1,8 @@
 {-# Language ScopedTypeVariables #-}
-module Service
-where
+module Service.Service (
+  module Service.Service, 
+  module Service.Security
+) where
 
 import Types
 import Utils
@@ -40,9 +42,9 @@ import Happstack.Lite
   (mkCookie, addCookies, expireCookie, lookCookieValue, CookieLife(Session))
 import qualified Data.Time as CK
 import System.Locale(defaultTimeLocale)
-import Data.Acid.Advanced   ( query', update' )
 import Control.Monad ( void )
 
+import Service.Security
 
 -- for provided day, provide 2 years back and forward
 -- should take offset back or forward
@@ -350,30 +352,3 @@ exportAll ref dbCn = do
     ZP.addFilesToArchive [ZP.OptRecursive] ZP.emptyArchive [("/tmp/" ++ time)] 
   ok $ toResponseBS (CB.pack "application/zip") $ ZP.fromArchive arch
 
---authenticate util--
-getSessionCoopId :: PersistConnection -> ServerPart Integer
-getSessionCoopId ref = do 
-  Globals{sessions=sessions} <- query' ref GetIt
-  sessionId <- lookCookieValue "sessionId"
-  let res = M.lookup sessionId sessions
-  guard $ MB.isJust res
-  let Just (_,cpId) = res
-  return cpId
-
-expireSession :: PersistConnection -> ServerPartR
-expireSession ref = do
-  g@Globals{sessions=sessions} <- query' ref GetIt
-  sessionId <- lookCookieValue "sessionId"
-  void $ update' ref $ PutIt g{sessions = M.delete sessionId sessions}
-  expireCookie "sessionId"
-  okJSResp ()
-
-attachSession :: PersistConnection -> Cooperative -> ServerPart ()
-attachSession ref Cooperative{cooperativeId=cpId, name=name, username=user} = do
-  liftIO $ LG.infoM "Service.attachSession" $ printf "Resolved for %s, %s" user name
-  utcNow <- liftIO CK.getCurrentTime
-  let secs = CK.formatTime defaultTimeLocale "%s" utcNow
-  let sessionId = secs
-  addCookies [(Session, mkCookie "sessionId" sessionId)]
-  g@Globals{sessions=sessions} <- query' ref GetIt
-  void $ update' ref $ PutIt g{sessions = M.insert sessionId (user, cpId) sessions}
