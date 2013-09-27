@@ -72,4 +72,23 @@ postAllocationDisbursal ref dbCn =
        today <- getCurrentDay
        rsltUpdateAllocated dbCn cpId allocateOver today) >>= okJSResp
         
+       {--
+getAllocation::PersistConnection -> PG.Connection -> ServerPartR 
+getAllocation ref dbCn = do cpId <- getSessionCoopId ref
+  -- read period
+  allocGet dbCn cpId period >>= okJSResp
+    
+getAllocationDisbursals::PersistConnection -> PG.Connection -> ServerPartR
+getAllocationDisbursals ref dbCn = do cpId <- getSessionCoopId ref
+  -- read period
+  disbursalGetFor dbCn cpId period >>= okJSResp
   
+postRescheduleDisbursal::PersistConnection -> PG.Connection -> ServerPartR
+postRescheduleDisbursal ref dbCn = do cpId <- getSessionCoopId ref
+  -- read (identifying allocdate, dsbdate) + new date
+--}
+--postForkDisbursal::PersistConnection -> PG.Connection -> ServerPartR
+  -- read (identifying allocdate, dsbdate) + new date, updated proportion, new proport
+
+--postShiftProportionDisbursals::PersistConnection -> PG.Connection -> ServerPartR
+  -- read (identifying allocdate, dsbdate from, dsbdate to, proportion)
