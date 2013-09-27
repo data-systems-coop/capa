@@ -4,6 +4,9 @@
 
 
 FUTURE
+-change alloc settings, save settings with alloc
+-collective equity account
+-amount trigger delayed disbursals
 -more jquery plugin controls
 -introduction allocation object, store snapshot of config with it
 -cleanup JS include/serving
@@ -32,7 +35,9 @@ FUTURE
 -project financial health, dev health, dsi financial health status
 -period picker shift over time
 -conn pool?
-
+-decimal places
+-buy in action populate w/accept date
+-both accounts display beside each other
 --------------------
 
 
