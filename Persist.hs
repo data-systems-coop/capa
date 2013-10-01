@@ -179,6 +179,29 @@ ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) =
     (DB.fromSql revenueGenerated)
     performedOver
 
+allocFromRow :: [DB.SqlValue] -> Allocation
+allocFromRow (performedOn:_) = 
+  Allocation{alcPerformedOn=DB.fromSql performedOn}
+
+allocGet :: PG.Connection -> Integer -> FiscalPeriod -> IO Allocation
+allocGet dbCn cpId resultOf = do
+  let (prdStartDay, prdType) = prdToSql resultOf
+  [alloc] <- 
+    DB.quickQuery' dbCn "select alcPerformedOn from Allocation where (cpId, (resultOf).prdStart, (resultOf).prdType) = (?,?,?)" 
+      [DB.SqlInteger cpId, prdStartDay, prdType]
+  return $ allocFromRow alloc
+  
+disbFromRow :: [DB.SqlValue] -> Disbursal
+disbFromRow (performedOn:proportion:_) = 
+  Disbursal {dsbPerformedOn=DB.fromSql performedOn, dsbProportion=DB.fromSql proportion}
+
+disbursalGetFor :: PG.Connection -> Integer -> FiscalPeriod -> IO [Disbursal]
+disbursalGetFor dbCn cpId resultOf = do
+  let (prdStartDay, prdType) = prdToSql resultOf
+  (DB.quickQuery' dbCn "select dsbPerformedOn, dsbProportion from Disbursal where (cpId, (resultOf).prdStart, (resultOf).prdType) = (?,?,?)" 
+      [DB.SqlInteger cpId, prdStartDay, prdType]) >>= 
+    (return . fmap disbFromRow)
+
 prdToSql :: FiscalPeriod -> (DB.SqlValue, DB.SqlValue)
 prdToSql FiscalPeriod{start=GregorianMonth yr mo, periodType = prdType} = 
   (DB.toSql $ fromGregorian yr mo 1, DB.toSql $ show prdType)
@@ -221,13 +244,31 @@ acnGetFor ::
   PG.Connection -> Integer -> Integer -> Integer -> 
     IO [(MemberEquityAction, Maybe FiscalPeriod)]
 acnGetFor dbCn cpId mbrId acctId = do
-  (DB.quickQuery' dbCn "select acnType, amount, performedOn, (resultOf).prdStart, (resultOf).prdType from MemberEquityAction where (cpId,mbrId,acctId) = (?,?,?) order by performedOn asc"
+  (DB.quickQuery' dbCn 
+    "select acnType, amount, performedOn, (resultOf).prdStart, (resultOf).prdType from MemberEquityAction where (cpId,mbrId,acctId) = (?,?,?) order by performedOn asc"
     [DB.toSql cpId, DB.toSql mbrId, DB.toSql acctId]) >>= 
     return . 
       fmap 
         (\r -> 
           (acnFrom r, 
            if (r !! 3) == DB.SqlNull then Nothing else Just $ prdFrom $ drop 3 r))
+  
+acnFromDsb :: [DB.SqlValue] -> MemberEquityAction
+acnFromDsb (performedOn:_:amount:_) = 
+  MemberEquityAction{actionType=DistributeInstallment, amount=DB.fromSql amount, 
+                     performedOn=DB.fromSql performedOn}
+
+acnGetForDisbursal :: 
+  PG.Connection -> Integer -> FiscalPeriod -> Day -> IO [(Member, MemberEquityAction)]
+acnGetForDisbursal dbCn cpId resultOf performedOn = do 
+  let (prdStartDay, prdType) = prdToSql resultOf
+  (DB.quickQuery' dbCn 
+     "select d.dsbPerformedOn, d.dsbProportion, a.amount, m.mbrId, m.firstName, m.lastName, m.acceptedOn from Disbursal d inner join MemberEquityAction a using (cpId,resultOf) inner join Member m using (cpId,mbrId) where (d.cpId,(d.resultOf).prdStart, (d.resultOf).prdType, d.dsbPerformedOn) = (?,?,?,?)"
+     [DB.toSql cpId, prdStartDay, prdType, DB.toSql performedOn]) >>= 
+    return . 
+      fmap
+        (\r -> 
+          (mbrFromRow $ drop 4 r, acnFromDsb r))
   
 acnExportFor :: PG.Connection -> Integer -> String -> IO () 
 acnExportFor dbCn cpId file = 

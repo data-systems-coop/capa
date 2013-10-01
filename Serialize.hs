@@ -58,6 +58,14 @@ instance ToJSON MemberEquityAction where
 	 	 "amount" .= amt, 
 	 	 "performedOn" .= toGregorian prf]
 
+instance ToJSON Allocation where
+  toJSON Allocation{alcPerformedOn=prf} = 
+    object ["alcPerformedOn" .= toGregorian prf]
+
+instance ToJSON Disbursal where
+  toJSON Disbursal{dsbPerformedOn=prf,dsbProportion=prop} = 
+    object ["dsbPerformedOn" .= toGregorian prf, "dsbProportion" .= prop]
+
 instance ToJSON GregorianMonth where
   toJSON (GregorianMonth year month) = 
     	 object ["year" .= year, "month" .= month]

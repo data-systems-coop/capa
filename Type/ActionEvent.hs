@@ -9,17 +9,16 @@ import Data.Default
 
 import Type.Base
 
-data ActionEvent = 
-  Disbursal {
-    dsbPerformedOn::Day, dsbProportion::Rational
-  } | 
-  Allocation {
-    alcPerformedOn::Day
-  } 
- deriving (Show, Read, Eq, Ord, Data, Typeable)
+data Disbursal = Disbursal {
+  dsbPerformedOn::Day, dsbProportion::Rational
+} deriving (Show, Read, Eq, Ord, Data, Typeable)
 
-instance Default ActionEvent where
-  def = Disbursal{dsbPerformedOn=def,dsbProportion=def}
-  
-   
-  
+data Allocation = Allocation {
+  alcPerformedOn::Day
+} deriving (Show, Read, Eq, Ord, Data, Typeable)
+
+instance Default Disbursal where
+  def = Disbursal{dsbPerformedOn=def,dsbProportion=1}
+
+instance Default Allocation where
+  def = Allocation{alcPerformedOn=def}
