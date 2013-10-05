@@ -18,16 +18,16 @@ function loadAllocationsDisbursals(over){
   $.post(allocUrl, {"over": JSON.stringify(over)}, function(data){
       $.each(data, function(i,d){
        var memId = d[0].memberId
-       appendMemberAllocation(d[0], d[1])
-       loadDisbursals(d[0], d[1], sprintf("#m%s", memId))  
+       appendMemberAllocation(d[0], d[1][0], d[1][1])
+       loadDisbursals(d[0], d[1][0], sprintf("#m%s", memId))  
      })
    })
 }
-function appendMemberAllocation(member, allocAction){
+function appendMemberAllocation(member, allocAction, allocRatio){
   $("#result").append(
-    sprintf("<tr id='m%s'><td>%s</td><td>%s</td><td>%s</td></tr>", 
+sprintf("<tr id='m%s'><td>%s</td><td>%s (%2.0f%%)</td><td>%s</td></tr>", 
       member.memberId, formatMember(member), 
-      allocAction.amount, allocAction.actionType))
+      allocAction.amount, allocRatio * 100, allocAction.actionType))
 }
 function loadDisbursals(member, alloc, containerId){
   $.post("/member/equity/disburse", 

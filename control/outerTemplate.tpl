@@ -90,12 +90,12 @@ function qualityPicker(id){
 }
 var actionTypes = 
     [{label:"Buy In", value:"BuyIn"}, 
-     {label:"Allocate Patronage Rebate", value:"AllocatePatronageRebate"},
-     {label:"Distribute Installment", value:"DistributeInstallment"},
+     //{label:"Allocate Patronage Rebate", value:"AllocatePatronageRebate"},
+     //{label:"Distribute Installment", value:"DistributeInstallment"},
      {label:"Earn Interest", value:"EarnInterest"},
      {label:"Distribute on Departure", value:"DistributeOnDeparture"},
      {label:"Distribute on Dissolution", value:"DistributeOnDissolution"},
-     {label:"Distribute Milestone", value:"DistributeMilestone"},
+     //{label:"Distribute Milestone", value:"DistributeMilestone"},
      {label:"Allocate Delayed Non Qualified", value:"AllocateDelayedNonQualified"}]
 function actionTypePicker(id){
   actionTypes.forEach(function(typ){

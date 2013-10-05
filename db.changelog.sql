@@ -189,3 +189,31 @@ update MemberEquityAccount
       end 
 where acctType in ('Committed', 'RollingPatronage');
 
+
+--changeset kazimi:alloc-group context:prod
+create table Allocation( 
+       cpId integer not null, 
+       resultOf FiscalPeriod not null, 
+       alcPerformedOn date not null,
+       PRIMARY KEY(cpId,resultOf),
+       FOREIGN KEY(cpId,resultOf) references FinancialResults(cpId,rsltOver)
+);
+create table MemberAllocateAction( 
+       cpId integer not null, 
+       mbrId integer not null, 
+       acctId integer not null, 
+       allocatedRatio numeric(3,2) not null, 
+       resultOf FiscalPeriod not null, 
+       PRIMARY KEY(cpId,mbrId,acctId),
+       FOREIGN KEY(cpId,mbrId) references Member(cpId,mbrId),
+       FOREIGN KEY(cpId,resultOf) references Allocation(cpId,resultOf)
+);
+create table Disbursal( 
+       cpId integer not null, 
+       resultOf FiscalPeriod not null, 
+       dsbPerformedOn date not null, 
+       dsbProportion numeric(3,2) not null,
+       PRIMARY KEY(cpId,resultOf,dsbPerformedOn),
+       FOREIGN KEY(cpId,resultOf) references Allocation(cpId,resultOf)
+); -- manually migrate financial results, actions
+

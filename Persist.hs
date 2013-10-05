@@ -78,7 +78,7 @@ coopSave dbCn Cooperative{name=nm,username=usr,usageStart=st,fiscalCalendarType=
 rsltGetAll :: PG.Connection -> Integer -> IO [FinancialResults]
 rsltGetAll dbCn cpId = do
   DB.quickQuery' dbCn 
-    "select (rsltOver).prdStart, (rsltOver).prdType, surplus, allocatedOn from FinancialResults where cpId = ?" [DB.SqlInteger cpId]
+    "select (rsltOver).prdStart, (rsltOver).prdType, surplus, (select alcPerformedOn from Allocation where (cpId, resultOf) = (f.cpId, rsltOver)) from FinancialResults f where cpId = ?" [DB.SqlInteger cpId]
   >>= mapM (return . rsltFromRow)
 
 rsltGetForOver :: 
@@ -87,7 +87,7 @@ rsltGetForOver dbCn cpId rsltOver = do
   let FiscalPeriod{start=GregorianMonth yr mo, periodType=prdType} = rsltOver
   let prdStartDay = fromGregorian yr mo 1
   rows <- DB.quickQuery' dbCn
-    "select (rsltOver).prdStart, (rsltOver).prdType, surplus, allocatedOn from FinancialResults where cpId = ? and (rsltOver).prdStart = ? and (rsltOver).prdType = ?"
+    "select (rsltOver).prdStart, (rsltOver).prdType, surplus, null from FinancialResults where cpId = ? and (rsltOver).prdStart = ? and (rsltOver).prdType = ?"
     [DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
   let mb = MB.listToMaybe rows
   return $ fmap rsltFromRow mb 
@@ -102,7 +102,7 @@ rsltFromRow (rsltOverStart:rsltOverType:surplus:allocatedOn:_) =
       (DB.fromSql allocatedOn)
       
 rsltSaveFor :: PG.Connection -> Integer -> FinancialResults -> IO ()
-rsltSaveFor dbCn cpId FinancialResults{over=over,surplus=srpls,allocatedOn=Nothing} = 
+rsltSaveFor dbCn cpId FinancialResults{over=over,surplus=srpls} = 
   do 
     let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = over
     let prdStartDay = fromGregorian yr mo 1
@@ -112,18 +112,6 @@ rsltSaveFor dbCn cpId FinancialResults{over=over,surplus=srpls,allocatedOn=Nothi
        DB.SqlInteger srpls]
     DB.commit dbCn  
   
-rsltUpdateAllocated 
-  :: PG.Connection -> Integer -> FiscalPeriod -> Day -> IO ()
-rsltUpdateAllocated dbCn cpId over allocatedOn = do 
-  do 
-    let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = over
-    let prdStartDay = fromGregorian yr mo 1
-    DB.run dbCn
-       "update FinancialResults set allocatedOn = ? where cpId = ? and (rsltOver).prdStart = ? and (rsltOver).prdType = ?"
-       [DB.SqlLocalDate allocatedOn, DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, 
-        DB.SqlString $ show prdType]
-    DB.commit dbCn
-
 rsltExportFor :: PG.Connection -> Integer -> String -> IO () 
 rsltExportFor dbCn cpId file = 
   void $ 
@@ -191,6 +179,15 @@ allocGet dbCn cpId resultOf = do
       [DB.SqlInteger cpId, prdStartDay, prdType]
   return $ allocFromRow alloc
   
+allocSave :: PG.Connection -> Integer -> FiscalPeriod -> Day -> IO ()
+allocSave dbCn cpId over allocatedOn = do 
+  let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = over
+  let prdStartDay = fromGregorian yr mo 1
+  DB.run dbCn "insert into Allocation values(?,(?,?),?)"
+     [DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, 
+      DB.SqlString $ show prdType, DB.SqlLocalDate allocatedOn]
+  DB.commit dbCn
+
 disbFromRow :: [DB.SqlValue] -> Disbursal
 disbFromRow (performedOn:proportion:_) = 
   Disbursal {dsbPerformedOn=DB.fromSql performedOn, dsbProportion=DB.fromSql proportion}
@@ -201,6 +198,13 @@ disbursalGetFor dbCn cpId resultOf = do
   (DB.quickQuery' dbCn "select dsbPerformedOn, dsbProportion from Disbursal where (cpId, (resultOf).prdStart, (resultOf).prdType) = (?,?,?)" 
       [DB.SqlInteger cpId, prdStartDay, prdType]) >>= 
     (return . fmap disbFromRow)
+
+disbursalSave :: PG.Connection -> Integer -> FiscalPeriod -> Disbursal -> IO ()
+disbursalSave dbCn cpId resultOf Disbursal{dsbPerformedOn=on,dsbProportion=prop} = do 
+  let (prdStartDay, prdType) = prdToSql resultOf
+  DB.run dbCn "insert into Disbursal values (?,(?,?),?,?)"
+    [DB.SqlInteger cpId, prdStartDay, prdType, DB.toSql on, toSqlDouble prop]
+  DB.commit dbCn
 
 prdToSql :: FiscalPeriod -> (DB.SqlValue, DB.SqlValue)
 prdToSql FiscalPeriod{start=GregorianMonth yr mo, periodType = prdType} = 
@@ -220,16 +224,20 @@ acnSaveFor
        prdStartDay, prdType]
     DB.commit dbCn
     
-acnSaveToRolling :: 
-  PG.Connection -> Integer -> Integer -> FiscalPeriod -> MemberEquityAction
-  -> IO ()
-acnSaveToRolling dbCn cpId mbrId resultOf acn = do
-    ((acctId:_):_) <- 
-      DB.quickQuery' dbCn "select acctId from MemberEquityAccount where (cpId,mbrId,acctType) = (?,?,?)" 
-        [DB.SqlInteger cpId, DB.SqlInteger mbrId, 
-         DB.SqlString $ show RollingPatronageAcct]
-    let rollingAcctId = DB.fromSql acctId
-    acnSaveFor dbCn cpId mbrId rollingAcctId (Just resultOf) acn
+allocAcnSaveToRolling :: 
+  PG.Connection -> Integer -> Integer -> FiscalPeriod -> Rational
+  -> IO ()  
+allocAcnSaveToRolling dbCn cpId mbrId resultOf allocatedRatio = do
+  ((acctId:_):_) <- 
+    DB.quickQuery' dbCn "select acctId from MemberEquityAccount where (cpId,mbrId,acctType) = (?,?,?)" 
+      [DB.SqlInteger cpId, DB.SqlInteger mbrId, 
+       DB.SqlString $ show RollingPatronageAcct]
+  let (prdStartDay, prdType) = prdToSql resultOf
+  DB.run dbCn 
+    "insert into MemberAllocateAction values(?,?,?,?,(?,?))"
+    [DB.SqlInteger cpId, DB.SqlInteger mbrId, acctId, 
+     toSqlDouble allocatedRatio, prdStartDay, prdType]
+  DB.commit dbCn
     
 acnFrom :: [DB.SqlValue] -> MemberEquityAction 
 acnFrom (acnType:amnt:perfOn:_) = 
@@ -245,7 +253,7 @@ acnGetFor ::
     IO [(MemberEquityAction, Maybe FiscalPeriod)]
 acnGetFor dbCn cpId mbrId acctId = do
   (DB.quickQuery' dbCn 
-    "select acnType, amount, performedOn, (resultOf).prdStart, (resultOf).prdType from MemberEquityAction where (cpId,mbrId,acctId) = (?,?,?) order by performedOn asc"
+    "select * from (select acnType, amount, performedOn, (resultOf).prdStart, (resultOf).prdType, cpId, mbrId, acctId from MemberEquityAction union all select 'AllocatePatronageRebate', f.surplus * allocatedRatio as amount, alcPerformedOn, (a.resultOf).prdStart, (a.resultOf).prdType, aa.cpId, aa.mbrId, aa.acctId from Allocation a inner join FinancialResults f on (a.cpId, a.resultOf) = (f.cpId, f.rsltOver) inner join MemberAllocateAction aa on (aa.cpId, aa.resultOf) = (a.cpId, a.resultOf) union all select 'DistributeInstallment', f.surplus * allocatedRatio * -dsbProportion as amount, dsbPerformedOn, (a.resultOf).prdStart, (a.resultOf).prdType, a.cpId, a.mbrId, a.acctId from MemberAllocateAction a inner join FinancialResults f on (a.cpId, a.resultOf) = (f.cpId, f.rsltOver) inner join Disbursal d on (a.cpId, a.resultOf) = (d.cpId, d.resultOf)) act  where (cpId,mbrId,acctId) = (?,?,?) order by performedOn asc"
     [DB.toSql cpId, DB.toSql mbrId, DB.toSql acctId]) >>= 
     return . 
       fmap 
@@ -263,7 +271,7 @@ acnGetForDisbursal ::
 acnGetForDisbursal dbCn cpId resultOf performedOn = do 
   let (prdStartDay, prdType) = prdToSql resultOf
   (DB.quickQuery' dbCn 
-     "select d.dsbPerformedOn, d.dsbProportion, a.amount, m.mbrId, m.firstName, m.lastName, m.acceptedOn from Disbursal d inner join MemberEquityAction a using (cpId,resultOf) inner join Member m using (cpId,mbrId) where (d.cpId,(d.resultOf).prdStart, (d.resultOf).prdType, d.dsbPerformedOn) = (?,?,?,?)"
+     "select d.dsbPerformedOn, fr.surplus * aa.allocatedRatio * -d.dsbProportion  as amount, m.mbrId, m.firstName, m.lastName, m.acceptedOn from Disbursal d inner join MemberAllocateAction aa using (cpId,resultOf) inner join FinancialResults fr on (aa.resultOf, aa.cpId) = (fr.rsltOver, fr.cpId) inner join Member m on (aa.cpId,aa.mbrId) = (m.cpId,m.mbrId) where (d.cpId, (d.resultOf).prdStart, (d.resultOf).prdType, d.dsbPerformedOn) = (?,?,?,?)"
      [DB.toSql cpId, prdStartDay, prdType, DB.toSql performedOn]) >>= 
     return . 
       fmap

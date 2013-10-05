@@ -40,7 +40,7 @@ postScheduleAllocateDisbursal ref dbCn =
 
 handleAllocateToMembers ::
   PersistConnection -> PG.Connection -> 
-   ServerPart (FiscalPeriod, (M.Map Member MemberEquityAction))
+   ServerPart (FiscalPeriod, (M.Map Member (MemberEquityAction, Rational)))
 handleAllocateToMembers ref dbCn =  
   do cpId <- getSessionCoopId ref
      overStr <- lookBS "over"
@@ -60,17 +60,18 @@ postAllocationDisbursal ref dbCn =
      (allocateOver, me) <- handleAllocateToMembers ref dbCn
      (liftIO $ do 
        LG.infoM "Service.postAllocationDisbursal" $ 
-         printf "%d. alloc for %s" cpId (show allocateOver)            
-       disbursalSchedule <- dsbSchedGet dbCn cpId     
-       mapM_
-         (\(Member{memberId=mbrId}, allocAcn) -> do
-           acnSaveToRolling dbCn cpId mbrId allocateOver allocAcn
-           mapM_ 
-             (acnSaveToRolling dbCn cpId mbrId allocateOver)
-             (scheduleDisbursalsFor allocAcn disbursalSchedule))
-         (M.toList me)
+         printf "%d. alloc for %s" cpId (show allocateOver)
+       disbursalSchedule <- dsbSchedGet dbCn cpId
        today <- getCurrentDay
-       rsltUpdateAllocated dbCn cpId allocateOver today) >>= okJSResp
+       allocSave dbCn cpId allocateOver today
+       mapM_
+         (\(Member{memberId=mbrId}, (_, allocatedRatio)) ->
+           allocAcnSaveToRolling dbCn cpId mbrId allocateOver allocatedRatio)
+         (M.toList me)
+       mapM_ 
+         (disbursalSave dbCn cpId allocateOver)
+         (scheduleDisbursals today disbursalSchedule)
+       ) >>= okJSResp
         
 getAllocation::PersistConnection -> PG.Connection -> ServerPartR 
 getAllocation ref dbCn = do 
@@ -78,6 +79,8 @@ getAllocation ref dbCn = do
   Just resultOf <- readPeriod "resultOf"
   (liftIO $ allocGet dbCn cpId resultOf) >>= okJSResp
     
+--get allocation actions
+
 getAllocationDisbursals::PersistConnection -> PG.Connection -> ServerPartR
 getAllocationDisbursals ref dbCn = do 
   cpId <- getSessionCoopId ref
@@ -92,12 +95,11 @@ getAllocationDisbursals ref dbCn = do
 postRescheduleDisbursal::PersistConnection -> PG.Connection -> ServerPartR
 postRescheduleDisbursal ref dbCn = do cpId <- getSessionCoopId ref
   -- read (identifying allocdate, dsbdate) + new date
---}
 --postForkDisbursal::PersistConnection -> PG.Connection -> ServerPartR
   -- read (identifying allocdate, dsbdate) + new date, updated proportion, new proport
-
 --postShiftProportionDisbursals::PersistConnection -> PG.Connection -> ServerPartR
   -- read (identifying allocdate, dsbdate from, dsbdate to, proportion)
+--}
 
 readPeriod::String -> ServerPart (Maybe FiscalPeriod)
 readPeriod = fmap decode . lookBS

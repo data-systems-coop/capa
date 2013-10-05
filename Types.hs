@@ -55,7 +55,6 @@ data Member = Member { -- mbr
   lastName::String,
   memberId::Integer,
   acceptedOn::Day
-  --leftOn::Maybe Day
 } deriving (Show, Eq, Ord, Data, Typeable)
 
 data FinancialResults = FinancialResults { -- rslt

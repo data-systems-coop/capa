@@ -35,6 +35,8 @@ memberPatronageComponentProportions ps =
     _ `div'` 0 = 0
     n `div'` d = n % d
 
+
+--ROUND!!!! HERE to xx. % or 2 decimals, 
 memberPatronageAllocateRatios :: 
   PatronageWeights -> M.Map Member WorkPatronage -> M.Map Member Rational
 memberPatronageAllocateRatios 
@@ -45,25 +47,37 @@ memberPatronageAllocateRatios
 
 allocateEquityFor ::
   FinancialResults -> Day -> (PatronageWeights, M.Map Member WorkPatronage) -> 
-    M.Map Member MemberEquityAction
-allocateEquityFor FinancialResults{surplus=surplus} performedOn = 
-  M.map makeAlloc . M.map allocateSurplus . uncurry memberPatronageAllocateRatios
+    M.Map Member (MemberEquityAction, Rational)
+allocateEquityFor FinancialResults{surplus=surplus} performedOn (wghts, memPatr) = 
+  M.mapWithKey (\m amt -> (makeAlloc amt, memRatios M.! m)) $
+    M.map allocateSurplus $ memRatios
   where makeAlloc amt = 
           MemberEquityAction{actionType=AllocatePatronageRebate, amount=amt,
                              performedOn=performedOn}
         allocateSurplus = round . ((toRational surplus) *)
+        memRatios = memberPatronageAllocateRatios wghts memPatr
 
 scheduleDisbursalsFor :: MemberEquityAction -> DisbursalSchedule -> [MemberEquityAction]
 scheduleDisbursalsFor 
   MemberEquityAction{actionType=AllocatePatronageRebate,amount=amount, 
                      performedOn=allocatedOn} = 
-  map (\(after, proportion) -> makeDisburse (allocatedOn+ after) $ disbursed proportion)
+  map (\(after, proportion) -> makeDisburse (allocatedOnPlus after) $ disbursed proportion)
   where 
-    allocatedOn+ (GregorianDuration years months) = 
-      addGregorianMonthsClip months $ addGregorianYearsClip years allocatedOn
+    allocatedOnPlus = gregorianDayPlus allocatedOn 
     disbursed = round . ((toRational amount) *)
     makeDisburse on amt = 
       MemberEquityAction{actionType=DistributeInstallment,amount=(-amt),performedOn=on}
+
+scheduleDisbursals :: Day -> DisbursalSchedule -> [Disbursal]
+scheduleDisbursals allocatedOn = 
+  map 
+    (\(after, proportion) -> 
+      Disbursal{dsbPerformedOn = gregorianDayPlus allocatedOn after, 
+                dsbProportion = proportion})
+  
+gregorianDayPlus :: Day -> GregorianDuration -> Day
+gregorianDayPlus day (GregorianDuration years months) = 
+  addGregorianMonthsClip months $ addGregorianYearsClip years day
 
 runningBalance :: [MemberEquityAction] -> [(MemberEquityAction, Money)]
 runningBalance acns = zip acns $ scanl1 (+) $ fmap amount acns

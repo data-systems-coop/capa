@@ -185,10 +185,15 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
        method GET >> (withCn $ getAllFinancialResultsDetail ref)
      , method POST >> (withCn $ putFinancialResults ref)]
+  , dir "allocation" $ msum [
+         nullDir >> method GET >> (withCn $ getAllocation ref)
+       , dir "disburse" $ dir "actions" $ method GET >> 
+           (withCn $ getAllocationDisbursals ref)]
   , dir "members" $ msum [
         nullDir >> method GET >> (withCn $ getMembers ref)
-      , dir "equity" $ dir "accounts" $ 
-          method GET >> (withCn $ getAllMembersEquityAccounts ref)
+      , dir "equity" $ msum [
+           dir "accounts" $ 
+             method GET >> (withCn $ getAllMembersEquityAccounts ref)]
       , dir "patronage" $ method GET >> (withCn $ getAllMemberPatronage ref)]
   , dir "member" $ msum [ 
          method POST >> (withCn $ putMemberAndAccounts ref)
