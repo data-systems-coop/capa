@@ -1,14 +1,9 @@
--<performance/memory basic check> 
 -form validation failures/errors (entry forms) - important still
-
-
-
-FUTURE
 -change alloc settings, save settings with alloc
 -collective equity account
 -amount trigger delayed disbursals
 -more jquery plugin controls
--introduction allocation object, store snapshot of config with it
+-store snapshot of config with it
 -cleanup JS include/serving
 -get automated export working again
 -filter deactivated members, accounts
@@ -30,14 +25,15 @@ FUTURE
 -use slicker haskell/js solution, plus cooler js libs
 -more monads for cp id, ...
 -tighter db constraints with checks, uniques
--meta data for service -> url or remove names
+-meta data for service -> url or remove named service functions
 -improve selection of libraries used
--project financial health, dev health, dsi financial health status
 -period picker shift over time
 -conn pool?
 -decimal places
 -buy in action populate w/accept date
 -both accounts display beside each other
+-performance, memory measure
+-project financial health, dev health, dsi financial health status
 --------------------
 
 
@@ -68,6 +64,11 @@ release/refresh - (config files??)
     -restore db
     -run db migrate, start
 
+remote support
+   -bug description, post to github or reddit. screenshots, times, data helpful
+   -contact user, setup screenshare
+   -get screenshots, details on when happened, what data
+
 dev manual (most custom, specific to more general)
    -haskell main libraires
    -haskell peripheral libraries
@@ -88,10 +89,3 @@ user manual (core, frequent steps to less frequent)
    -references
    -screen shots + descriptions
    -getting started guide
-
-remote support
-   -bug description, post to github. screenshots, times, data helpful
-   -contact user, setup screenshare
-   -get screenshots, details on when happened, what data
-
-

@@ -6,7 +6,7 @@ import qualified Data.Map as M
 import Data.Time (Day, addGregorianMonthsClip, addGregorianYearsClip)
 import Data.Ratio ((%))
 import Data.Monoid (mconcat, Sum(..)) 
-
+import Data.List
 
 
 patronageComponents :: 
@@ -36,14 +36,17 @@ memberPatronageComponentProportions ps =
     n `div'` d = n % d
 
 
---ROUND!!!! HERE to xx. % or 2 decimals, 
 memberPatronageAllocateRatios :: 
   PatronageWeights -> M.Map Member WorkPatronage -> M.Map Member Rational
 memberPatronageAllocateRatios 
   PatronageWeights{workw=ww, skillWeightedWorkw=skw, seniorityw=snw, 
   	           qualityw=qw, revenueGeneratedw=rw} = 
-     M.map weightedSum . memberPatronageComponentProportions
-  where weightedSum (w, sk, sn, q, r) = sum [w * ww,sk * skw,sn * snw,q * qw,r * rw]
+     truncateAll . M.map weightedSum . memberPatronageComponentProportions
+  where 
+    truncateAll mp = 
+      let fixed = truncateOverflow $ M.elems mp
+      in M.fromList $ zip (M.keys mp) fixed
+    weightedSum (w, sk, sn, q, r) = sum [w * ww,sk * skw,sn * snw,q * qw,r * rw]
 
 allocateEquityFor ::
   FinancialResults -> Day -> (PatronageWeights, M.Map Member WorkPatronage) -> 
@@ -81,3 +84,14 @@ gregorianDayPlus day (GregorianDuration years months) =
 
 runningBalance :: [MemberEquityAction] -> [(MemberEquityAction, Money)]
 runningBalance acns = zip acns $ scanl1 (+) $ fmap amount acns
+
+truncateOverflow :: [Rational] -> [Rational]
+truncateOverflow proportions = 
+  let (truncated, leftover) = 
+        foldl 
+          (\(truncated, leftover) proportion ->
+            let (n,f) = properFraction (proportion * (100 % 1))
+            in (truncated ++ [n % 100], leftover + (f / 100)))
+          ([], 0)
+          proportions
+  in (init truncated) ++ [(last truncated + leftover)]
