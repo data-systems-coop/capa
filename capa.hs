@@ -34,7 +34,8 @@ import Heist.Interpreted (renderTemplate)
 import Control.Monad.Trans.Either
 import Control.Monad.Identity
 
-import Control.Exception(bracket)     -- util
+import Control.Exception(bracket) -- util
+import qualified Control.Exception as EX
 import Data.Acid(openLocalState)
 
 import Control.Monad(when)
@@ -231,8 +232,8 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
   , dir "logout" $ expireSession ref
   , redirect "/control/enter"]
 
-                                          
-main = do
+run :: IO ()                                          
+run = do
   s <- SYS.openlog "capa" [] SYS.USER LG.DEBUG
   LG.updateGlobalLogger LG.rootLoggerName (LG.addHandler s . LG.setLevel LG.DEBUG)
   LG.infoM "main" "started"
@@ -275,4 +276,7 @@ main = do
         authenticatedForRegister authUriBase])
     ehs 
 
-
+main :: IO ()
+main = 
+  run `EX.catch` 
+    (\e -> LG.infoM "main" $ show ("Server quit due to: ", e::EX.SomeException))
