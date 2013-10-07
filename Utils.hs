@@ -7,12 +7,10 @@ import Numeric (readFloat)  -- num util
 import qualified Data.ByteString.Char8 as B  -- + templates
 import qualified Data.Text.Lazy as T  -- req, serialize
 import qualified Data.Time as DT 
-  
-lookString :: String -> ServerPart String
-lookString = fmap T.unpack . lookText
+import qualified Happstack.Server as HS
 
 lookRead :: Read a => String -> ServerPart a
-lookRead = fmap read . lookString
+lookRead = fmap read . HS.look 
 
 readRational :: String -> Rational  -- round to 100ths
 readRational = toRational . fst . head . readFloat

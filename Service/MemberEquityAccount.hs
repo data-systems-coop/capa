@@ -8,6 +8,7 @@ import Domain
 import Serialize
 
 import Happstack.Lite (path, dir, ServerPart(..), lookBS) 
+import Happstack.Server (look)
 import qualified Data.Maybe as MB
 import qualified Data.List as L            
 import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
@@ -56,7 +57,7 @@ putEquityAction ref dbCn = do
   acctId <- lookRead "acctId"
   actionType <- lookRead "actionType"
   amount <- lookRead "amount"
-  performedOnStr <- lookString "performedOn"
+  performedOnStr <- look "performedOn"
   let Just performedOn = parseJSDate performedOnStr
   overStr <- lookBS "resultOf"
   let overVal = decode overStr

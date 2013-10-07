@@ -15,7 +15,7 @@ import Happstack.Lite
     ServerPart)
 import Happstack.Server.Routing (dirs)
 import Happstack.Server(decodeBody, defaultBodyPolicy, simpleHTTPWithSocket, nullConf,
-                        bindPort, Conf(..))
+                        bindPort, Conf(..), look)
 
 import Network.HTTP.Conduit(simpleHttp)
 import Control.Monad.IO.Class (liftIO)
@@ -113,7 +113,7 @@ resolveCoop authUriBase ref dbCn = do
 
 retrieveProfile :: String -> ServerPart OpenID
 retrieveProfile authUriBase = do 
-  token <- lookString "token"
+  token <- look "token"
   let reqUri = authUriBase ++ token
   r <- liftIO $ simpleHttp reqUri
   let Just (A.Object r2) = A.decode r

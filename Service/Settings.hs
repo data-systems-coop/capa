@@ -8,6 +8,7 @@ import Domain
 import Serialize
 
 import Happstack.Lite (path, dir, ServerPart(..), lookBS) 
+import Happstack.Server (look)
 import qualified Data.Maybe as MB
 import qualified Data.List as L            
 import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
@@ -100,7 +101,7 @@ fieldDetails ElaborateMix =
 
 lookPatronageWeights :: AllocationMethod -> ServerPart PatronageWeights
 lookPatronageWeights method = do
-  let lookRational = fmap readRational . lookString
+  let lookRational = fmap readRational . look
   case method of 
     ProductiveHours -> do
       workw <- lookRational "workw"

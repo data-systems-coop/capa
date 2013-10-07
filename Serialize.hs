@@ -15,6 +15,7 @@ import Data.Time (Day, fromGregorian , toGregorian, UTCTime(..), getCurrentTime)
 import qualified Data.Text as DT  
 import qualified Data.Map as M
 import Happstack.Lite(ServerPart)
+import Happstack.Server(look)
 import Control.Monad.IO.Class (liftIO)  
 
 instance ToJSON Cooperative where   
@@ -150,16 +151,16 @@ class FromParams a where
 instance FromParams Member where --new member
   parseObject = do 
     let mbrId = 0    
-    firstName <- lookString "firstName"
-    lastName <- lookString "lastName"
-    Just acceptedOn <- fmap parseJSDate $ lookString "acceptedOn"
+    firstName <- look "firstName"
+    lastName <- look "lastName"
+    Just acceptedOn <- fmap parseJSDate $ look "acceptedOn"
     return $ Member firstName lastName mbrId acceptedOn 
 
 instance FromParams Cooperative where --new coop
   parseObject = do
     let cpId = 0
-    name <- lookString "cpName"
-    username <- lookString "username"
+    name <- look "cpName"
+    username <- look "username"
     UTCTime{utctDay=usageStart} <- liftIO getCurrentTime
     clTpStart <- lookRead "clTpStart"
     clTpPeriodType <- lookRead "clTpPeriodType"
