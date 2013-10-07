@@ -217,3 +217,9 @@ create table Disbursal(
        FOREIGN KEY(cpId,resultOf) references Allocation(cpId,resultOf)
 ); -- manually migrate financial results, actions
 
+
+--changeset kazimi:alloc-group-fix context:prod
+alter table MemberAllocateAction drop constraint memberallocateaction_pkey;
+
+alter table MemberAllocateAction 
+      add constraint memberallocateaction_pkey PRIMARY KEY(cpId,mbrId,acctId,resultOf);
