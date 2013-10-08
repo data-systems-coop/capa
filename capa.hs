@@ -7,54 +7,33 @@ import Domain
 import Serialize
 import Persist.Persist
 import Service.Service
+import View
 
 import Happstack.Lite
-   (ok, method, dir, path, 
-    Method(..), nullDir, notFound, ToMessage(..), seeOther,
+   (method, dir, path, 
+    Method(..), nullDir, ToMessage(..), seeOther,
     CookieLife(Session), mkCookie, addCookies, expireCookie, lookCookieValue, 
     ServerPart)
+import Control.Monad(msum)
 import Happstack.Server.Routing (dirs)
 import Happstack.Server(decodeBody, defaultBodyPolicy, simpleHTTPWithSocket, nullConf,
-                        bindPort, Conf(..), look)
+                        bindPort, Conf(..))
 
-import Network.HTTP.Conduit(simpleHttp)
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.Aeson as A
-import qualified Data.Aeson.Generic as AG 
-import qualified Data.ByteString.Lazy.Char8 as LB
-import qualified Data.Aeson.Types as AT
-import Data.Acid.Advanced (query')
-
-import Text.Blaze.Html5 (html, p, toHtml) -- present, html, temlate
-import Blaze.ByteString.Builder (toByteString)
+ 
 import qualified Data.ByteString.Char8 as B  -- + templates
-import Heist (loadTemplates, HeistConfig(..), HeistState, initHeist,
-              defaultLoadTimeSplices, defaultInterpretedSplices)
-import Heist.Interpreted (renderTemplate)
-import Control.Monad.Trans.Either
-import Control.Monad.Identity
 
-import Control.Exception(bracket) -- util
-import qualified Control.Exception as EX
+
+import qualified Control.Exception as EX --util
 import Data.Acid(openLocalState)
 
-import Control.Monad(when)
-import qualified Data.Time as CK
-import System.Locale(defaultTimeLocale)
-import Data.Acid.Advanced   ( query', update' )
-import qualified Data.Map as M
-
 import qualified Database.HDBC.PostgreSQL as PG -- remove me
-import qualified Database.HDBC as DB
+import Database.HDBC(disconnect)
 
 import Data.Either.Utils (forceEither)
 import qualified Data.ConfigFile as CF
-import Text.Printf(printf)
 
-import qualified System.Log.Logger as LG
 import qualified System.Log.Handler.Syslog as SYS
-
-import qualified Data.Maybe as MB
 
 import Happstack.Server.RqData(HasRqData(..), RqEnv)
 import Happstack.Lite(serveDirectory, Browsing(..))
@@ -62,17 +41,11 @@ import Happstack.Lite(serveDirectory, Browsing(..))
 import System.Posix.User (setUserID, UserEntry(..), getUserEntryForName)
 
 --------------APP CONTROLLER------------------------
-type TemplateStore = HeistState Identity
                      
 redirect :: String -> ServerPartR
 redirect url = seeOther url $ toResponse ()
 
-templateFor :: TemplateStore -> B.ByteString -> ServerPartR
-templateFor hState name = do
-  let rendered = runIdentity $ renderTemplate hState name
-  maybe (notFound $ toResponse $ "Template not found: " ++ B.unpack name)
-  	(\(bldr,_) -> ok $ toResponse $ toByteString bldr)
-	rendered  	
+
   
 
 generalTemplateResponse :: 
@@ -80,9 +53,12 @@ generalTemplateResponse ::
   B.ByteString -> PG.Connection -> ServerPartR
 generalTemplateResponse hState ref secure checkReg name dbCn = 
   nullDir >> method GET >> do 
+    -- lookup cookie for sessionid, if any
     (_, _, cookies) <- askRqEnv
-    let mbSession = lookup "sessionid" cookies
-    if secure && MB.isNothing mbSession
+    let mbSession = lookup "sessionid" cookies --lookCookieValue
+    -- based on secure or not x session x check registration status
+        -- either redirect to login, partially registered, or page requested
+    if secure && isNothing mbSession
       then redirect "/control/enter"
       else do 
         if checkReg
@@ -97,43 +73,40 @@ generalTemplateResponse hState ref secure checkReg name dbCn =
                  templateFor hState name  
            else
              templateFor hState name
-     
 
 resolveCoop :: String -> PersistConnection -> PG.Connection -> ServerPartR
 resolveCoop authUriBase ref dbCn = do 
-  ident <- retrieveProfile authUriBase
+  -- get profile
+  ident <- retrieveProfile authUriBase 
+  -- check for coop
   mbCoop <- liftIO $ coopGetFor dbCn ident
+  -- homepage or login page
   let redir = maybe "/control/enter" (\_ -> "/control/coop/summary") mbCoop
-  (if MB.isJust mbCoop then
-     attachSession ref $ MB.fromJust mbCoop
+  (if isJust mbCoop then
+     -- if has coop, start session
+     attachSession ref $ fromJust mbCoop
    else 
-     liftIO $ LG.errorM "resolveCoop" $ printf "%s no coop" ident)
+     -- log failed attempt to find coop for profile
+     liftIO $ errorM "resolveCoop" $ printf "%s no coop" ident)
   redirect redir
     -- then redirect to login screen with "Not associated with coop"
-
-retrieveProfile :: String -> ServerPart OpenID
-retrieveProfile authUriBase = do 
-  token <- look "token"
-  let reqUri = authUriBase ++ token
-  r <- liftIO $ simpleHttp reqUri
-  let Just (A.Object r2) = A.decode r
-  let AT.Success pf = (AT.parse (A..: "profile") r2)::AT.Result A.Object
-  let AT.Success ident = (AT.parse (A..: "identifier") pf)::AT.Result String
-  return ident
   
 authenticatedForRegister :: String -> ServerPartR
 authenticatedForRegister authUriBase = do 
-  ident <- retrieveProfile authUriBase
-  redirect $ "/control/coop/register?username=" ++ ident --url escape
+  retrieveProfile authUriBase >>= 
+    redirect . ("/control/coop/register?username=" ++) --url escape
 
+
+-- run db action, cleanup conn resources
 withConn :: String -> (PG.Connection -> ServerPartR) -> ServerPartR
 withConn connString body = do -- use bracket instead
   cn <- liftIO $ PG.connectPostgreSQL connString
   r <- body cn  
-  liftIO $ DB.disconnect cn
+  liftIO $ disconnect cn
   return r
 
 ---------------ENTRY---------------------------------
+-- Main.hs
 capaApp :: 
   PersistConnection -> String -> [ServerPartR] -> TemplateStore -> ServerPartR
 capaApp ref connStr [resolveCoopCtrl, authControl] hState =
@@ -145,9 +118,11 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
  in do 
  decodeBody (defaultBodyPolicy "/tmp/" 0 1000 1000)
  msum [
+   -- Main.hs
     dir "img" $ serveDirectory EnableBrowsing [] "control/images"
   , dir "js" $ serveDirectory EnableBrowsing [] "control/js"
     --partial path failurs like missing parameter?
+  --view router
   , dir "control" $ msum [ --remove control 
          dir "coop" $ msum [
             dir "summary" $ templateResponse "coopSummary"
@@ -181,8 +156,10 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
            , dir "register" $ authControl]
        , dir "logout" $ 
            expireSession ref >> redirect "/control/enter"
-       , dir "export" $ templateResponse "export"]
+       , dir "export" $ templateResponse "export"
+       , redirect "/control/enter"]
   
+  --service router
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
        method GET >> (withCn $ getAllFinancialResultsDetail ref)
      , method POST >> (withCn $ putFinancialResults ref)]
@@ -229,54 +206,61 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
       dir "method" $ path $ (okJSResp . fieldDetails . read) -- GET
     , dir "methods" $ method GET >> (okJSResp $ fmap show allocMethods)]
   , dir "export.zip" $ method GET >> (withCn $ exportAll ref)
-  , dir "logout" $ expireSession ref
-  , redirect "/control/enter"]
+  , dir "logout" $ expireSession ref]
 
-run :: IO ()                                          
+
+-- Main.hs
+run :: IO ()  
 run = do
-  s <- SYS.openlog "capa" [] SYS.USER LG.DEBUG
-  LG.updateGlobalLogger LG.rootLoggerName (LG.addHandler s . LG.setLevel LG.DEBUG)
-  LG.infoM "main" "started"
+  --receive config file arg
+  --setup logger
+  s <- SYS.openlog "capa" [] SYS.USER DEBUG
+  updateGlobalLogger rootLoggerName (addHandler s . setLevel DEBUG)
+  infoM "main" "started"
+  --read config
   val <- CF.readfile CF.emptyCP "etc/dev.txt"
   let cp = forceEither val
   let getConfig = forceEither . CF.get cp "DEFAULT" 
-  let dbHost = (forceEither $ CF.get cp "DEFAULT" "dbhost")::String
+  -- config should select debug or not  
+  --read db config
+  let dbHost = (getConfig "dbhost")::String
   let dbPort = (forceEither $ CF.get cp "DEFAULT" "dbport")::Integer
-  let dbName = (forceEither $ CF.get cp "DEFAULT" "dbname")::String
-  let dbUser = (forceEither $ CF.get cp "DEFAULT" "dbuser")::String
-  let dbPass = (forceEither $ CF.get cp "DEFAULT" "dbpass")::String
-  let authUriBase = (forceEither $ CF.get cp "DEFAULT" "authuribase")::String
-  let servicesUri = (forceEither $ CF.get cp "DEFAULT" "servicesuri")::String
-  let templateDir = (forceEither $ CF.get cp "DEFAULT" "templatedir")
+  let dbName = (getConfig "dbname")::String
+  let dbUser = (getConfig "dbuser")::String
+  let dbPass = (getConfig "dbpass")::String
+  --read authent config
+  let authUriBase = (getConfig "authuribase")::String
+  --read service config
+  let servicesUri = (getConfig "servicesuri")::String
+  --read template config
+  let templateDir = (getConfig "templatedir")::String
+  --build db string
   let connString = 
         (printf "host=%s port=%d dbname=%s user=%s password=%s"
               dbHost dbPort dbName dbUser dbPass)
-  -- config should select debug or not
-  let conf = nullConf { port = getConfig "webport"}
+  --read / build web server config
+  let conf = nullConf { port = forceEither $ CF.get cp "DEFAULT" "webport"}
+  --build server socket
   socket <- bindPort conf
-  getUserEntryForName (forceEither $ CF.get cp "DEFAULT" "webprocessuser") 
-    >>= setUserID . userID
+  --switch user
+  getUserEntryForName (getConfig "webprocessuser") >>= setUserID . userID
+  --restart cache
   x <- openLocalState g0
-  ehs <- runEitherT $ do 
-     templateRepo <- loadTemplates templateDir
-     let hCfg = (HeistConfig 
-	           [] 
-	           (defaultInterpretedSplices ++ defaultLoadTimeSplices) 
-	           [] 
-	           [] 
-	           templateRepo)::HeistConfig Identity
-     initHeist hCfg
+  --init template repo
+  ehs <- initTemplateRepo templateDir 
   either 
-    (error . concat) 
+    (error . concat) --output init template errors
+    --start server
     (simpleHTTPWithSocket socket conf . 
      capaApp 
        x 
        connString
-       [withConn connString $ resolveCoop authUriBase x, 
+       [withConn connString $ resolveCoop authUriBase x, --provide auth handlers
         authenticatedForRegister authUriBase])
     ehs 
 
 main :: IO ()
 main = 
+  --log unhandled exceptionsx
   run `EX.catch` 
-    (\e -> LG.infoM "main" $ show ("Server quit due to: ", e::EX.SomeException))
+    (\e -> infoM "main" $ show ("Server quit due to: ", e::EX.SomeException))

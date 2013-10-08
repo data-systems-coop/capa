@@ -1,3 +1,4 @@
+{-# Language OverloadedStrings #-}
 module Service.Security
 where
 
@@ -34,6 +35,11 @@ import qualified Data.Time as CK
 import System.Locale(defaultTimeLocale)
 import Data.Acid.Advanced   ( query', update' )
 
+import qualified Data.Aeson.Types as AT
+import qualified Data.Aeson as A
+import Network.HTTP.Conduit(simpleHttp)
+import Happstack.Server(look)
+
 getSessionCoopId :: PersistConnection -> ServerPart Integer
 getSessionCoopId ref = do 
   Globals{sessions=sessions} <- query' ref GetIt
@@ -60,3 +66,17 @@ attachSession ref Cooperative{cooperativeId=cpId, name=name, username=user} = do
   addCookies [(Session, mkCookie "sessionId" sessionId)]
   g@Globals{sessions=sessions} <- query' ref GetIt
   void $ update' ref $ PutIt g{sessions = M.insert sessionId (user, cpId) sessions}
+
+
+retrieveProfile :: String -> ServerPart OpenID
+retrieveProfile authUriBase = do 
+  --handle reply
+  token <- look "token"
+  let reqUri = authUriBase ++ token
+  --retrieve profile
+  r <- liftIO $ simpleHttp reqUri
+  --parse response
+  let Just (A.Object r2) = A.decode r
+  let AT.Success pf = (AT.parse (A..: "profile") r2)::AT.Result A.Object
+  let AT.Success ident = (AT.parse (A..: "identifier") pf)::AT.Result String
+  return ident
