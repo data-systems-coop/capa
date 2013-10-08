@@ -2,10 +2,6 @@
 module Type.WorkPatronage
 where
 
-import Data.Data(Data, Typeable)
-import Data.Time(Day)
-import Data.Default
-
 import Type.Base
 
 data WorkPatronage = WorkPatronage { -- ptrng

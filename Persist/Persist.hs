@@ -32,7 +32,8 @@ import Persist.Allocation
 import Persist.Disbursal
 import Persist.MemberAction
 
-
+--Session
+--ObjectPersistConnection
 type PersistConnection = AcidState Globals
 
 data Globals = Globals { 
@@ -49,6 +50,7 @@ getIt = ask
 
 $(makeAcidic ''Globals ['putIt, 'getIt])
 
+-- move to top level
 g0 = Globals M.empty
 
 

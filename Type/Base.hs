@@ -1,12 +1,17 @@
 {-# Language DeriveDataTypeable #-}
-module Type.Base
-where
+module Type.Base (
+  module Type.Base, 
+  Data, Typeable,
+  Day, fromGregorian, 
+  module Data.Default
+) where
 
 import Data.Data(Data, Typeable)  -- allow persist, serialize
 import Data.Time(Day)
 import Data.Time(fromGregorian)
-import qualified Data.Map as M
 import Data.Default
+
+import qualified Data.Map as M
 
 data FiscalPeriod = FiscalPeriod {  -- prd
   start::GregorianMonth,

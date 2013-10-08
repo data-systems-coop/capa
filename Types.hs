@@ -3,19 +3,17 @@ module Types(
   module Types,
   module Type.Base,
   module Type.WorkPatronage,
-  module Type.ActionEvent
+  module Type.Allocation,
+  module Type.Disbursal
 ) where 
 
-import Data.Data(Data, Typeable)  -- allow persist, serialize
-import Data.Time(Day)
 import Data.Ratio ((%))
-import Data.Time(fromGregorian)
 import qualified Data.Map as M
-import Data.Default
 
 import Type.Base
 import Type.WorkPatronage
-import Type.ActionEvent
+import Type.Allocation
+import Type.Disbursal
 
 data PatronageWeights = PatronageWeights { -- wght
   workw::Rational,
@@ -172,4 +170,4 @@ memPatronage1 = (M.fromList
                   , (m3, [WorkPatronage 100 200 300 400 500 f2]) ])
 res1 = [FinancialResults 
           def{start=GregorianMonth 2012 1} 200 $ Just (fromGregorian 2011 1 2)] 
-acct1 = def::MemberEquityAccount
+
