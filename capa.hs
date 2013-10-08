@@ -5,7 +5,7 @@ import Types
 import Utils
 import Domain
 import Serialize
-import Persist
+import Persist.Persist
 import Service.Service
 
 import Happstack.Lite

@@ -4,7 +4,7 @@ where
 
 import Types
 import Utils
-import Persist
+import Persist.Persist
 import Domain
 import Serialize
 
