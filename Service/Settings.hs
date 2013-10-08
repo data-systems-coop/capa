@@ -27,6 +27,11 @@ import Text.Printf(printf)
 
 import Service.Security
 
+authenticatedForRegister :: String -> String -> ServerPartR
+authenticatedForRegister authUriBase registerUrl = do 
+  retrieveProfile authUriBase >>= 
+    redirect . (registerUrl ++) --url escape
+
 getCoopRegistrationState :: PersistConnection -> PG.Connection -> ServerPart (Bool,Bool)
 getCoopRegistrationState ref dbCn = do
   cpId <- getSessionCoopId ref

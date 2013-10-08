@@ -5,7 +5,7 @@ module Utils (
   module Data.Maybe
 ) where
 
-import Happstack.Lite(ServerPart, ToMessage(..), lookText, Response(..), ok)
+import Happstack.Lite(ServerPart, ToMessage(..), lookText, Response(..), ok, seeOther)
 import Data.Aeson(ToJSON, encode)
 import Numeric (readFloat)  -- num util
 import qualified Data.ByteString.Char8 as B  -- + templates
@@ -42,3 +42,6 @@ getCurrentDay = fmap DT.utctDay DT.getCurrentTime
 --  compute 2 years forward and back. 
 --  enun starting from 2 years back
 --  reverse
+
+redirect :: String -> ServerPartR
+redirect url = seeOther url $ toResponse ()

@@ -20,7 +20,6 @@ import Data.Default
 import Data.Aeson (encode, decode)
 import Control.Monad.IO.Class (liftIO)  
 import qualified Data.ByteString.Lazy.Char8 as LB 
-import qualified Data.ByteString.Char8 as CB 
 
 import qualified Database.HDBC.PostgreSQL as PG -- remove me
 
@@ -39,6 +38,7 @@ import qualified Data.Aeson.Types as AT
 import qualified Data.Aeson as A
 import Network.HTTP.Conduit(simpleHttp)
 import Happstack.Server(look)
+
 
 getSessionCoopId :: PersistConnection -> ServerPart Integer
 getSessionCoopId ref = do 
@@ -80,3 +80,22 @@ retrieveProfile authUriBase = do
   let AT.Success pf = (AT.parse (A..: "profile") r2)::AT.Result A.Object
   let AT.Success ident = (AT.parse (A..: "identifier") pf)::AT.Result String
   return ident
+
+resolveCoop :: 
+  String -> PersistConnection -> String -> String -> PG.Connection -> ServerPartR
+resolveCoop authUriBase ref loginUrl homeUrl dbCn = do 
+  -- get profile
+  ident <- retrieveProfile authUriBase 
+  -- check for coop
+  mbCoop <- liftIO $ coopGetFor dbCn ident
+  let redir = maybe loginUrl (\_ -> homeUrl) mbCoop
+  (if isJust mbCoop then
+     -- if has coop, start session
+     attachSession ref $ fromJust mbCoop
+   else 
+     -- log failed attempt to find coop for profile
+     liftIO $ errorM "resolveCoop" $ printf "%s no coop" ident)
+  redirect redir
+    -- then redirect to login screen with "Not associated with coop"
+  
+

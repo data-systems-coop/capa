@@ -8,25 +8,18 @@ import Serialize
 import Persist.Persist
 import Service.Service
 import View
+import WebServer
 
-import Happstack.Lite
-   (method, dir, path, 
-    Method(..), nullDir, ToMessage(..), seeOther,
-    CookieLife(Session), mkCookie, addCookies, expireCookie, lookCookieValue, 
-    ServerPart)
+import Happstack.Lite(serveDirectory, Browsing(..))
+import Happstack.Lite(method, dir, path, Method(..), nullDir)
 import Control.Monad(msum)
-import Happstack.Server.Routing (dirs)
-import Happstack.Server(decodeBody, defaultBodyPolicy, simpleHTTPWithSocket, nullConf,
-                        bindPort, Conf(..))
+import Happstack.Server(dirs, decodeBody, defaultBodyPolicy)
 
 import Control.Monad.IO.Class (liftIO)
- 
-import qualified Data.ByteString.Char8 as B  -- + templates
-
-
 import qualified Control.Exception as EX --util
-import Data.Acid(openLocalState)
 
+import Data.Acid(openLocalState)
+import qualified Data.Map as M
 import qualified Database.HDBC.PostgreSQL as PG -- remove me
 import Database.HDBC(disconnect)
 
@@ -34,68 +27,6 @@ import Data.Either.Utils (forceEither)
 import qualified Data.ConfigFile as CF
 
 import qualified System.Log.Handler.Syslog as SYS
-
-import Happstack.Server.RqData(HasRqData(..), RqEnv)
-import Happstack.Lite(serveDirectory, Browsing(..))
-
-import System.Posix.User (setUserID, UserEntry(..), getUserEntryForName)
-
---------------APP CONTROLLER------------------------
-                     
-redirect :: String -> ServerPartR
-redirect url = seeOther url $ toResponse ()
-
-
-  
-
-generalTemplateResponse :: 
-  TemplateStore -> PersistConnection -> Bool -> Bool -> 
-  B.ByteString -> PG.Connection -> ServerPartR
-generalTemplateResponse hState ref secure checkReg name dbCn = 
-  nullDir >> method GET >> do 
-    -- lookup cookie for sessionid, if any
-    (_, _, cookies) <- askRqEnv
-    let mbSession = lookup "sessionid" cookies --lookCookieValue
-    -- based on secure or not x session x check registration status
-        -- either redirect to login, partially registered, or page requested
-    if secure && isNothing mbSession
-      then redirect "/control/enter"
-      else do 
-        if checkReg
-           then do 
-             (alloc, disb) <- getCoopRegistrationState ref dbCn
-             if (not alloc || not disb) 
-               then
-                 redirect $ 
-                   printf "/control/coop/register/partial?alloc=%s&disburse=%s" 
-                     (show alloc) (show disb) 
-               else
-                 templateFor hState name  
-           else
-             templateFor hState name
-
-resolveCoop :: String -> PersistConnection -> PG.Connection -> ServerPartR
-resolveCoop authUriBase ref dbCn = do 
-  -- get profile
-  ident <- retrieveProfile authUriBase 
-  -- check for coop
-  mbCoop <- liftIO $ coopGetFor dbCn ident
-  -- homepage or login page
-  let redir = maybe "/control/enter" (\_ -> "/control/coop/summary") mbCoop
-  (if isJust mbCoop then
-     -- if has coop, start session
-     attachSession ref $ fromJust mbCoop
-   else 
-     -- log failed attempt to find coop for profile
-     liftIO $ errorM "resolveCoop" $ printf "%s no coop" ident)
-  redirect redir
-    -- then redirect to login screen with "Not associated with coop"
-  
-authenticatedForRegister :: String -> ServerPartR
-authenticatedForRegister authUriBase = do 
-  retrieveProfile authUriBase >>= 
-    redirect . ("/control/coop/register?username=" ++) --url escape
-
 
 -- run db action, cleanup conn resources
 withConn :: String -> (PG.Connection -> ServerPartR) -> ServerPartR
@@ -108,10 +39,18 @@ withConn connString body = do -- use bracket instead
 ---------------ENTRY---------------------------------
 -- Main.hs
 capaApp :: 
-  PersistConnection -> String -> [ServerPartR] -> TemplateStore -> ServerPartR
-capaApp ref connStr [resolveCoopCtrl, authControl] hState =
- let withCn = withConn connStr
-     templateResponseWithState = generalTemplateResponse hState ref
+  PersistConnection -> String -> (String -> ServerPartR) -> 
+  (String -> String -> PG.Connection -> ServerPartR) ->
+  TemplateStore -> ServerPartR
+capaApp ref connStr authControl resolveCoopWith hState =
+ let loginUrl = "/control/enter"
+     withCn = withConn connStr
+     resolveCoopCtrl = withCn $ resolveCoopWith loginUrl "/control/coop/summary"
+     templateResponseWithState = 
+       generalTemplateResponse   
+         loginUrl
+         "/control/coop/register/partial?alloc=%s&disburse=%s" 
+         (templateFor hState) ref
      unsecuredTemplateResponse nm = withCn $ templateResponseWithState False False nm
      templateResponse nm = withCn $ templateResponseWithState True True nm
      noPartialTemplateResponse nm = withCn $ templateResponseWithState True False nm
@@ -127,7 +66,7 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
          dir "coop" $ msum [
             dir "summary" $ templateResponse "coopSummary"
           , dir "register" $ msum [
-                nullDir >> unsecuredTemplateResponse "registerCoop"
+                unsecuredTemplateResponse "registerCoop"
               , dir "partial" $ noPartialTemplateResponse "partialRegistration"
               , dir "authenticate" $ unsecuredTemplateResponse "registerAuthenticate"]
           , dir "settings" $ msum [
@@ -153,11 +92,11 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
        , dir "enter" $ unsecuredTemplateResponse "enter" 
        , dir "login" $ msum [
              dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl
-           , dir "register" $ authControl]
+           , dir "register" $ authControl "/control/coop/register?username="]
        , dir "logout" $ 
-           expireSession ref >> redirect "/control/enter"
+           expireSession ref >> redirect loginUrl
        , dir "export" $ templateResponse "export"
-       , redirect "/control/enter"]
+       , redirect loginUrl]
   
   --service router
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
@@ -208,6 +147,7 @@ capaApp ref connStr [resolveCoopCtrl, authControl] hState =
   , dir "export.zip" $ method GET >> (withCn $ exportAll ref)
   , dir "logout" $ expireSession ref]
 
+g0 = Globals M.empty
 
 -- Main.hs
 run :: IO ()  
@@ -215,48 +155,36 @@ run = do
   --receive config file arg
   --setup logger
   s <- SYS.openlog "capa" [] SYS.USER DEBUG
+  -- config should select debug or not    
   updateGlobalLogger rootLoggerName (addHandler s . setLevel DEBUG)
   infoM "main" "started"
   --read config
   val <- CF.readfile CF.emptyCP "etc/dev.txt"
   let cp = forceEither val
   let getConfig = forceEither . CF.get cp "DEFAULT" 
-  -- config should select debug or not  
-  --read db config
-  let dbHost = (getConfig "dbhost")::String
-  let dbPort = (forceEither $ CF.get cp "DEFAULT" "dbport")::Integer
-  let dbName = (getConfig "dbname")::String
-  let dbUser = (getConfig "dbuser")::String
-  let dbPass = (getConfig "dbpass")::String
   --read authent config
   let authUriBase = (getConfig "authuribase")::String
   --read service config
   let servicesUri = (getConfig "servicesuri")::String
-  --read template config
-  let templateDir = (getConfig "templatedir")::String
   --build db string
   let connString = 
-        (printf "host=%s port=%d dbname=%s user=%s password=%s"
-              dbHost dbPort dbName dbUser dbPass)
-  --read / build web server config
-  let conf = nullConf { port = forceEither $ CF.get cp "DEFAULT" "webport"}
-  --build server socket
-  socket <- bindPort conf
-  --switch user
-  getUserEntryForName (getConfig "webprocessuser") >>= setUserID . userID
+       printf "host=%s port=%d dbname=%s user=%s password=%s"
+         (getConfig "dbhost") ((forceEither $ CF.get cp "DEFAULT" "dbport")::Integer)
+         (getConfig "dbname") (getConfig "dbuser") (getConfig "dbpass")
+  let webPort = forceEither $ CF.get cp "DEFAULT" "webport"
+  socket <- openSocket webPort $ getConfig "webprocessuser"
   --restart cache
   x <- openLocalState g0
   --init template repo
-  ehs <- initTemplateRepo templateDir 
+  ehs <- initTemplateRepo (getConfig "templatedir")
   either 
     (error . concat) --output init template errors
-    --start server
-    (simpleHTTPWithSocket socket conf . 
+    (serve socket webPort . 
      capaApp 
        x 
        connString
-       [withConn connString $ resolveCoop authUriBase x, --provide auth handlers
-        authenticatedForRegister authUriBase])
+       (authenticatedForRegister authUriBase)
+       (resolveCoop authUriBase x)) --provide auth handlers
     ehs 
 
 main :: IO ()

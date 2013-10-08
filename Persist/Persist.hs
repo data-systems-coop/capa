@@ -50,10 +50,6 @@ getIt = ask
 
 $(makeAcidic ''Globals ['putIt, 'getIt])
 
--- move to top level
-g0 = Globals M.empty
-
-
 
 --AllocationSetting
 allocStngGet :: Connection -> Integer -> IO (AllocationMethod, PatronageWeights) 
