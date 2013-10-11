@@ -7,27 +7,9 @@ import Utils
 import Persist.Persist
 import Domain
 import Serialize
+import Service.Base
 
-import Happstack.Lite 
-  (ok, path, dir, Response(..), ServerPart(..), lookBS, lookCookieValue,
-   toResponseBS) 
-import qualified Data.Maybe as MB
-import qualified Data.List as L            
-import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
-                  addGregorianMonthsClip, addGregorianYearsClip)   
 import Data.Map as M
-import Data.Default
-import Data.Aeson (encode, decode)
-import Control.Monad.IO.Class (liftIO)  
-import qualified Data.ByteString.Lazy.Char8 as LB 
-
-import qualified Database.HDBC.PostgreSQL as PG -- remove me
-
-import Control.Monad(guard, void)
-
-import System.Log.Logger as LG
-import Text.Printf(printf)
-
 import Happstack.Lite
   (mkCookie, addCookies, expireCookie, lookCookieValue, CookieLife(Session))
 import qualified Data.Time as CK
@@ -37,38 +19,43 @@ import Data.Acid.Advanced   ( query', update' )
 import qualified Data.Aeson.Types as AT
 import qualified Data.Aeson as A
 import Network.HTTP.Conduit(simpleHttp)
-import Happstack.Server(look)
 
 
-getSessionCoopId :: PersistConnection -> ServerPart Integer
-getSessionCoopId ref = do 
-  Globals{sessions=sessions} <- query' ref GetIt
-  sessionId <- lookCookieValue "sessionId"
-  let res = M.lookup sessionId sessions
-  guard $ MB.isJust res
-  let Just (_,cpId) = res
-  return cpId
+getSessionCoopId :: ReaderT PersistConnection (ServerPartT IO) Integer
+getSessionCoopId = do 
+  ref <- ask 
+  lift $ do 
+    Globals{sessions=sessions} <- query' ref GetIt  -- get all sesssion
+    sessionId <- lookCookieValue "sessionId" -- get users session id
+    let res = M.lookup sessionId sessions  -- attempt find session
+    guard $ isJust res -- ensure found
+    let Just (_,cpId) = res -- retrieve id from it
+    return cpId -- 
 
-expireSession :: PersistConnection -> ServerPartR
-expireSession ref = do
-  g@Globals{sessions=sessions} <- query' ref GetIt
-  sessionId <- lookCookieValue "sessionId"
-  void $ update' ref $ PutIt g{sessions = M.delete sessionId sessions}
-  expireCookie "sessionId"
-  okJSResp ()
+expireSession :: ReaderT PersistConnection (ServerPartT IO) Response
+expireSession = do
+  ref <- ask 
+  lift $ do 
+    g@Globals{sessions=sessions} <- query' ref GetIt
+    sessionId <- lookCookieValue "sessionId"
+    void $ update' ref $ PutIt g{sessions = M.delete sessionId sessions}
+    expireCookie "sessionId"
+    okJSResp ()
 
-attachSession :: PersistConnection -> Cooperative -> ServerPart ()
-attachSession ref Cooperative{cooperativeId=cpId, name=name, username=user} = do
-  liftIO $ LG.infoM "Service.attachSession" $ printf "Resolved for %s, %s" user name
-  utcNow <- liftIO CK.getCurrentTime
-  let secs = CK.formatTime defaultTimeLocale "%s" utcNow
-  let sessionId = secs
-  addCookies [(Session, mkCookie "sessionId" sessionId)]
-  g@Globals{sessions=sessions} <- query' ref GetIt
-  void $ update' ref $ PutIt g{sessions = M.insert sessionId (user, cpId) sessions}
+attachSession :: Cooperative -> ReaderT PersistConnection (ServerPartT IO) ()
+attachSession Cooperative{cooperativeId=cpId, name=name, username=user} = do
+  ref <- ask
+  lift $ do 
+    liftIO $ infoM "Service.attachSession" $ printf "Resolved for %s, %s" user name
+    utcNow <- liftIO CK.getCurrentTime
+    let secs = CK.formatTime defaultTimeLocale "%s" utcNow
+    let sessionId = secs
+    addCookies [(Session, mkCookie "sessionId" sessionId)]
+    g@Globals{sessions=sessions} <- query' ref GetIt
+    void $ update' ref $ PutIt g{sessions = M.insert sessionId (user, cpId) sessions}
 
 
-retrieveProfile :: String -> ServerPart OpenID
+retrieveProfile :: String -> ServerPartT IO OpenID
 retrieveProfile authUriBase = do 
   --handle reply
   token <- look "token"
@@ -82,7 +69,7 @@ retrieveProfile authUriBase = do
   return ident
 
 resolveCoop :: 
-  String -> PersistConnection -> String -> String -> PG.Connection -> ServerPartR
+  String -> PersistConnection -> String -> String -> Connection -> ServerPartR
 resolveCoop authUriBase ref loginUrl homeUrl dbCn = do 
   -- get profile
   ident <- retrieveProfile authUriBase 
@@ -91,7 +78,7 @@ resolveCoop authUriBase ref loginUrl homeUrl dbCn = do
   let redir = maybe loginUrl (\_ -> homeUrl) mbCoop
   (if isJust mbCoop then
      -- if has coop, start session
-     attachSession ref $ fromJust mbCoop
+     runReaderT (attachSession $ fromJust mbCoop) ref
    else 
      -- log failed attempt to find coop for profile
      liftIO $ errorM "resolveCoop" $ printf "%s no coop" ident)

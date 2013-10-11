@@ -6,24 +6,9 @@ import Utils
 import Persist.Persist
 import Domain
 import Serialize
+import Service.Base
 
-import Happstack.Lite (path, dir, ServerPart(..), lookBS) 
-import Happstack.Server (look)
-import qualified Data.Maybe as MB
-import qualified Data.List as L            
-import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
-                  addGregorianMonthsClip, addGregorianYearsClip)   
 import Data.Map as M
-import Data.Default
-import Data.Aeson (encode, decode)
-import Control.Monad.IO.Class (liftIO)  
-
-import qualified Database.HDBC.PostgreSQL as PG -- remove me
-
-import Control.Monad(guard, void)
-
-import System.Log.Logger as LG
-import Text.Printf(printf)
 
 import Service.Security
 
@@ -32,45 +17,58 @@ authenticatedForRegister authUriBase registerUrl = do
   retrieveProfile authUriBase >>= 
     redirect . (registerUrl ++) --url escape
 
-getCoopRegistrationState :: PersistConnection -> PG.Connection -> ServerPart (Bool,Bool)
-getCoopRegistrationState ref dbCn = do
-  cpId <- getSessionCoopId ref
+getCoopRegistrationState :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) (Bool, Bool)
+getCoopRegistrationState = do
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
   liftIO $ coopRegisterState dbCn cpId 
 
-putDefaultDisbursalSchedule :: PersistConnection -> PG.Connection -> ServerPartR
-putDefaultDisbursalSchedule ref dbCn = do 
-  cpId <- getSessionCoopId ref
-  defaultDisbSchedStr <- lookBS "disbursalSchedule"
+putDefaultDisbursalSchedule :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+putDefaultDisbursalSchedule = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  defaultDisbSchedStr <- lift $ lookBS "disbursalSchedule"
   let Just defaultDisbSched = 
         (decode defaultDisbSchedStr)::Maybe DisbursalSchedule
-  (liftIO $ dsbSchedSaveFor dbCn cpId defaultDisbSched) >>= okJSResp
+  (liftIO $ dsbSchedSaveFor dbCn cpId defaultDisbSched) >>= (lift . okJSResp)
 
-getDefaultDisbursalSchedule :: PersistConnection -> PG.Connection -> ServerPartR
-getDefaultDisbursalSchedule ref dbCn = do 
-  cpId <- getSessionCoopId ref 
-  (liftIO $ dsbSchedGet dbCn cpId) >>= okJSResp
+getDefaultDisbursalSchedule :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getDefaultDisbursalSchedule = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  (liftIO $ dsbSchedGet dbCn cpId) >>= (lift . okJSResp)
 
-getSeniorityMappings :: PersistConnection -> PG.Connection -> ServerPartR
-getSeniorityMappings ref dbCn = do
-  cpId <- getSessionCoopId ref
-  (liftIO $ snrtyMpngsGet dbCn cpId) >>= okJSResp
+getSeniorityMappings :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getSeniorityMappings = do
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  (liftIO $ snrtyMpngsGet dbCn cpId) >>= (lift . okJSResp)
 
-putCoopAllocateSettings :: PersistConnection -> PG.Connection -> ServerPartR
-putCoopAllocateSettings ref dbCn = do 
-      cpId <- getSessionCoopId ref
+putCoopAllocateSettings :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+putCoopAllocateSettings = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  lift $ do 
       allocMethod <- lookRead "allocationMethod" 
       pw <- lookPatronageWeights allocMethod
       sm <- lookSeniorityMappings allocMethod
       (liftIO $ saveCoopAllocateSettings dbCn cpId allocMethod pw sm) >>= okJSResp
 
-getAllocMethodDetail :: PersistConnection -> PG.Connection -> ServerPartR
-getAllocMethodDetail ref dbCn = do
-  cpId <- getSessionCoopId ref
+getAllocMethodDetail :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getAllocMethodDetail = do
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
   (method, wghts) <- (liftIO $ allocStngGet dbCn cpId) 
-  okJSResp $ ((fieldDetails method), show method, wghts)
+  lift $ okJSResp $ ((fieldDetails method), show method, wghts)
 
 saveCoopAllocateSettings :: 
-  PG.Connection -> Integer -> AllocationMethod -> PatronageWeights -> 
+  Connection -> Integer -> AllocationMethod -> PatronageWeights -> 
     Maybe SeniorityMappings
     -> IO ()
 saveCoopAllocateSettings dbCn cpId method patronageWeights seniorityMappings 
@@ -78,11 +76,11 @@ saveCoopAllocateSettings dbCn cpId method patronageWeights seniorityMappings
     allocStngSaveFor dbCn cpId method patronageWeights
   | otherwise = do  
     allocStngSaveFor dbCn cpId method patronageWeights
-    snrtyMpngsSaveFor dbCn cpId $ MB.fromJust seniorityMappings
+    snrtyMpngsSaveFor dbCn cpId $ fromJust seniorityMappings
     
 
 lookSeniorityMappings :: 
-  AllocationMethod -> ServerPart (Maybe SeniorityMappings)
+  AllocationMethod -> ServerPartT IO (Maybe SeniorityMappings)
 lookSeniorityMappings method 
   | (method == ProductiveHours || method == Wages || method == SimpleMix) = 
       return Nothing
@@ -104,7 +102,7 @@ fieldDetails ElaborateMix =
   [workFieldDetail, skillWeightedWorkFieldDetail, seniorityFieldDetail,
    qualityFieldDetail, revenueGeneratedFieldDetail]
 
-lookPatronageWeights :: AllocationMethod -> ServerPart PatronageWeights
+lookPatronageWeights :: AllocationMethod -> ServerPartT IO PatronageWeights
 lookPatronageWeights method = do
   let lookRational = fmap readRational . look
   case method of 

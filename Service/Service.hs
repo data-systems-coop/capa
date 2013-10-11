@@ -25,6 +25,7 @@ import Service.MemberEquityAccount
 import Service.Allocation
 
 import Utils
+import Service.Base
 import qualified Data.ByteString.Char8 as B  -- + templates
 import Database.HDBC.PostgreSQL(Connection)
 import Persist.Persist(PersistConnection)
@@ -41,7 +42,7 @@ generalTemplateResponse
    nullDir >> method GET >> do 
     -- lookup cookie for sessionid, if any
     (_, _, cookies) <- askRqEnv
-    let mbSession = lookup "sessionid" cookies --lookCookieValue
+    let mbSession = lookup "sessionid" cookies --lookCookieValue with optional
     -- based on secure or not x session x check registration status
         -- either redirect to login, partially registered, or page requested
     if secure && isNothing mbSession
@@ -49,7 +50,7 @@ generalTemplateResponse
       else do 
         if checkReg
            then do 
-             (alloc, disb) <- getCoopRegistrationState ref dbCn
+             (alloc, disb) <- runReaderT getCoopRegistrationState (ref,dbCn)
              if (not alloc || not disb) 
                then
                  redirect $ printf partialRegUrl (show alloc) (show disb) 

@@ -11,9 +11,10 @@ import View
 import WebServer
 
 import Happstack.Lite(serveDirectory, Browsing(..))
-import Happstack.Lite(method, dir, path, Method(..), nullDir)
-import Control.Monad(msum)
+import Happstack.Lite(method, dir, path, Method(..), nullDir, msum)
 import Happstack.Server(dirs, decodeBody, defaultBodyPolicy)
+import Happstack.Lite(ServerPart)
+import Control.Monad.Reader
 
 import Control.Monad.IO.Class (liftIO)
 import qualified Control.Exception as EX --util
@@ -36,7 +37,12 @@ withConn connString body = do -- use bracket instead
   liftIO $ disconnect cn
   return r
 
----------------ENTRY---------------------------------
+nGET :: ServerPart ()
+nGET = nullDir >> method GET
+
+nPOST :: ServerPart ()
+nPOST = nullDir >> method POST
+  
 -- Main.hs
 capaApp :: 
   PersistConnection -> String -> (String -> ServerPartR) -> 
@@ -54,6 +60,11 @@ capaApp ref connStr authControl resolveCoopWith hState =
      unsecuredTemplateResponse nm = withCn $ templateResponseWithState False False nm
      templateResponse nm = withCn $ templateResponseWithState True True nm
      noPartialTemplateResponse nm = withCn $ templateResponseWithState True False nm
+     w handler = do 
+       cn <- liftIO $ PG.connectPostgreSQL connStr
+       r <- runReaderT handler (ref, cn)
+       liftIO $ disconnect cn
+       return r
  in do 
  decodeBody (defaultBodyPolicy "/tmp/" 0 1000 1000)
  msum [
@@ -94,58 +105,51 @@ capaApp ref connStr authControl resolveCoopWith hState =
              dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl
            , dir "register" $ authControl "/control/coop/register?username="]
        , dir "logout" $ 
-           expireSession ref >> redirect loginUrl
+           runReaderT expireSession ref >> redirect loginUrl
        , dir "export" $ templateResponse "export"
        , redirect loginUrl]
   
   --service router
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
-       method GET >> (withCn $ getAllFinancialResultsDetail ref)
-     , method POST >> (withCn $ putFinancialResults ref)]
+       nGET >> w getAllFinancialResultsDetail, nPOST >> w putFinancialResults]
   , dir "allocation" $ msum [
-         nullDir >> method GET >> (withCn $ getAllocation ref)
-       , dir "disburse" $ dir "actions" $ method GET >> 
-           (withCn $ getAllocationDisbursals ref)]
+         nGET >> w getAllocation
+       , dir "disburse" $ dir "actions" $ nGET >> w getAllocationDisbursals]
   , dir "members" $ msum [
-        nullDir >> method GET >> (withCn $ getMembers ref)
+        nGET >> w getMembers
       , dir "equity" $ msum [
-           dir "accounts" $ 
-             method GET >> (withCn $ getAllMembersEquityAccounts ref)]
-      , dir "patronage" $ method GET >> (withCn $ getAllMemberPatronage ref)]
+           dir "accounts" $ nGET >> w getAllMembersEquityAccounts]
+      , dir "patronage" $ method GET >> w getAllMemberPatronage]
   , dir "member" $ msum [ 
-         method POST >> (withCn $ putMemberAndAccounts ref)
-       , method GET >> (withCn $ getMember ref)
-       , method POST >> (withCn $ putMemberPatronage ref)
+         nPOST >> w putMemberAndAccounts, method GET >> w getMember
+       , method POST >> w putMemberPatronage
        , dir "equity" $ msum [
-           dir "disburse" $ method POST >> (withCn $ postScheduleAllocateDisbursal ref)
-         , dir "history" $ method POST >> (withCn $ putEquityAction ref)
+           dir "disburse" $ nPOST >> w postScheduleAllocateDisbursal
+         , dir "history" $ nPOST >> w putEquityAction
          , dir "account" $ msum [
-                nullDir >> method GET >> (withCn $ getMemberEquityAccount ref)
-              , dir "actions" $ 
-                  method GET >> (withCn $ getActionsForMemberEquityAcct ref)] ] ]
+                nGET >> w getMemberEquityAccount
+              , dir "actions" $ nGET >> w getActionsForMemberEquityAcct] ] ]
   , dir "equity" $ msum [
        dir "members" $ msum [
          dir "allocate" $ msum [
-             dir "generate" $ method POST >> (withCn $ postAllocateToMembers ref)
-           , dir "save" $ method POST >> (withCn $ postAllocationDisbursal ref)] ] ]
+             dir "generate" $ nPOST >> w postAllocateToMembers
+           , dir "save" $ nPOST >> w postAllocationDisbursal] ] ]
   , dir "coop" $ msum [
-       nullDir >> method GET >> (withCn $ getCooperative ref)
-     , nullDir >> method POST >> (withCn $ putCooperative ref)
+       nGET >> w getCooperative, nPOST >> w putCooperative
      , dir "settings" $ msum [
           dir "allocate" $ msum [ 
-               method POST >> (withCn $ putCoopAllocateSettings ref)
-             , dir "method" $ method GET >> (withCn $ getAllocMethodDetail ref)
-             , dir "seniority" $ dir "levels" $ 
-                 method GET >> (withCn $ getSeniorityMappings ref)] 
-        , dir "disburse" $ dir "schedule" $ dir "default" $  
-                 method POST >> (withCn $ putDefaultDisbursalSchedule ref)
-               , method GET >> (withCn $ getDefaultDisbursalSchedule ref)] ] 
-  , dir "fiscal" $ dir "periods" $ (withCn $ getLatestFiscalPeriods ref)
+               nPOST >> w putCoopAllocateSettings
+             , dir "method" $ nGET >> w getAllocMethodDetail
+             , dir "seniority" $ dir "levels" $ nGET >> w getSeniorityMappings] 
+        , dir "disburse" $ dir "schedule" $ dir "default" $ msum [
+                 nPOST >> w putDefaultDisbursalSchedule
+               , nGET >> w getDefaultDisbursalSchedule] ] ] 
+  , dir "fiscal" $ dir "periods" $ w getLatestFiscalPeriods
   , dir "allocate" $ msum [
-      dir "method" $ path $ (okJSResp . fieldDetails . read) -- GET
-    , dir "methods" $ method GET >> (okJSResp $ fmap show allocMethods)]
-  , dir "export.zip" $ method GET >> (withCn $ exportAll ref)
-  , dir "logout" $ expireSession ref]
+      dir "method" $ path $ (okJSResp . fieldDetails . read) --GET
+    , dir "methods" $ nGET >> (okJSResp $ fmap show allocMethods)]
+  , dir "export.zip" $ nGET >> w exportAll
+  , dir "logout" $ runReaderT expireSession ref]
 
 g0 = Globals M.empty
 
@@ -176,7 +180,7 @@ run = do
   --restart cache
   x <- openLocalState g0
   --init template repo
-  ehs <- initTemplateRepo (getConfig "templatedir")
+  ehs <- initTemplateRepo $ getConfig "templatedir"
   either 
     (error . concat) --output init template errors
     (serve socket webPort . 

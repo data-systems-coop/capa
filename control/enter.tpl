@@ -110,7 +110,7 @@ body {
   <dt>Local Installations</dt>
   <dd><small>Obtain the <a href='https://github.com/data-systems-coop/capa'>source code</a>. For support in setting up or extensively modifying a local instance of CAMP, please contact Data Systems for availability and rates. </small></dd>
   <dt>Credits</dt>
-  <dd><small>Karin Anderson, Kanishka Azimi, Scott Bradley, Aaron Desrochers, Will Desrochers, Roberta Eidman, Yochai Gal, Melissa Hoover, Koumbit staff, Amy Johnson, Mike Leung, Casey Lyons, Jason Mott, Katie Ormiston, Cody Rock, Marc Rudnick, Colin Sagan, Sarah Snider, Jason Storer, Charles Uchu Strader.</small></dd>
+  <dd><small>Karin Anderson, Kanishka Azimi, Scott Bradley, Erbin Crowell, Aaron Desrochers, Will Desrochers, Roberta Eidman, Yochai Gal, Melissa Hoover, Amy Johnson, Koumbit staff, Mike Leung, Casey Lyons, Jason Mott, Katie Ormiston, Cody Rock, Marc Rudnick, Colin Sagan, Sarah Snider, Jason Storer, Charles Uchu Strader. Special thanks to Erbin for the original idea.</small></dd>
   </dl>
 </div>
 

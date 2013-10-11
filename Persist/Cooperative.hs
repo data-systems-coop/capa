@@ -3,13 +3,12 @@ where
   
 import Persist.Base  
 
-import System.Log.Logger as LG
-
 import qualified Data.Map as M
-import qualified Data.Maybe as MB
 
 import qualified Database.HDBC.PostgreSQL as PG 
 import qualified Database.HDBC as DB
+
+import Control.Monad.Reader
 
 coopFromRow :: [DB.SqlValue] -> Cooperative
 coopFromRow [cpId,name,username,usageStart,usageEnd,calStart,calPrd] = 
@@ -17,9 +16,11 @@ coopFromRow [cpId,name,username,usageStart,usageEnd,calStart,calPrd] =
   in Cooperative (DB.fromSql cpId) (DB.fromSql name) (DB.fromSql username)
     (DB.fromSql usageStart) (DB.fromSql usageEnd) calType
 
-coopGet :: PG.Connection -> Integer -> IO Cooperative
-coopGet dbCn cpId = do 
-  (row:_) <- DB.quickQuery' dbCn "\
+coopGet :: ReaderT (PG.Connection, Integer) IO Cooperative
+coopGet = do 
+  (dbCn, cpId) <- ask
+  lift $ do 
+   (row:_) <- DB.quickQuery' dbCn "\
     \select cpId, \
     \       cpName, \
     \       username, \
@@ -29,7 +30,7 @@ coopGet dbCn cpId = do
     \       (fiscalCalendarType).prdType \
     \from Cooperative \
     \where cpId = ?" [DB.toSql cpId]
-  return $ coopFromRow row
+   return $ coopFromRow row
 
 coopGetFor :: PG.Connection -> OpenID -> IO (Maybe Cooperative)
 coopGetFor dbCn username = do 
@@ -43,11 +44,12 @@ coopGetFor dbCn username = do
     \       (fiscalCalendarType).prdType \
     \from Cooperative \
     \where username = ?" [DB.toSql username]
-  return $ fmap coopFromRow $ MB.listToMaybe rows
+  return $ fmap coopFromRow $ listToMaybe rows
 
-coopSave :: PG.Connection -> Cooperative -> IO Integer
-coopSave dbCn Cooperative{name=nm,username=usr,usageStart=st,fiscalCalendarType=clTp}=
-  do 
+coopSave :: Cooperative -> ReaderT PG.Connection IO Integer
+coopSave Cooperative{name=nm,username=usr,usageStart=st,fiscalCalendarType=clTp} = do
+  dbCn <- ask
+  lift $ do 
    let FiscalCalendarType{startf=fst,periodTypef=typ} = clTp
    DB.run dbCn "\
      \insert into Cooperative(\

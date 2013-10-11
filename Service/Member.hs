@@ -7,41 +7,31 @@ import Utils
 import Persist.Persist
 import Domain
 import Serialize
+import Service.Base
 
-import Happstack.Lite (path, dir, ServerPart(..), lookBS) 
-import qualified Data.Maybe as MB
-import qualified Data.List as L            
-import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
-                  addGregorianMonthsClip, addGregorianYearsClip)   
-import Data.Map as M
-import Data.Default
-import Data.Aeson (encode, decode)
-import Control.Monad.IO.Class (liftIO)  
-
-import qualified Database.HDBC.PostgreSQL as PG -- remove me
-
-import Control.Monad(guard, void)
-
-import System.Log.Logger as LG
-import Text.Printf(printf)
+import Happstack.Lite (path) 
 
 import Service.Security
 
-putMemberAndAccounts :: PersistConnection -> PG.Connection -> ServerPartR
-putMemberAndAccounts ref dbCn = do 
-  cpId <- getSessionCoopId ref
-  mem <- parseObject 
+putMemberAndAccounts :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+putMemberAndAccounts = do 
+  cpId <- withReaderT fst getSessionCoopId
+  mem <- lift $ parseObject 
+  dbCn <- asks snd
   (liftIO $ do 
     mbrId <- mbrSave dbCn cpId mem
-    acctSaveDefault dbCn cpId mbrId) >>= okJSResp
+    acctSaveDefault dbCn cpId mbrId) >>= (lift . okJSResp)
      
-getMember :: PersistConnection -> PG.Connection -> ServerPartR
-getMember ref dbCn =
-  path $ \(mid::Integer) -> do
-    cpId <- getSessionCoopId ref
+getMember :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getMember = do
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  lift $ path $ \(mid::Integer) -> do
     (liftIO $ mbrGet dbCn cpId mid) >>= okJSResp
 
-getMembers :: PersistConnection -> PG.Connection -> ServerPartR
-getMembers ref dbCn = do 
-  cpId <- getSessionCoopId ref
-  (liftIO $ getCurrentDay >>= mbrGetAll dbCn cpId) >>= okJSResp
+getMembers :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getMembers = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  (liftIO $ getCurrentDay >>= mbrGetAll dbCn cpId) >>= (lift . okJSResp)

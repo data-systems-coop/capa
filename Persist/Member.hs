@@ -31,7 +31,7 @@ mbrGetAll dbCn cpId asOf =
          \       coalesce(\
          \         (select sum(amount) \
          \          from (select amount, performedOn \
-         \               from MemberEquityAction\ 
+         \               from MemberEquityAction \ 
          \               where (cpId,mbrId) = (m.cpId,m.mbrId) \
          \               union all \
          \               select f.surplus * allocatedRatio, alcPerformedOn \
@@ -58,11 +58,11 @@ mbrGetAll dbCn cpId asOf =
 mbrGet :: PG.Connection -> Integer -> Integer -> IO (Maybe Member)
 mbrGet dbCn cpId mbrId = 
   DB.quickQuery' dbCn "\
-        \select mbrId,\
-        \       firstName,\
-        \       lastName,\
-        \       acceptedOn\
-        \from member\ 
+        \select mbrId, \
+        \       firstName, \
+        \       lastName, \
+        \       acceptedOn \
+        \from member \ 
         \where (cpId,mbrId)=(?,?)"
     [DB.SqlInteger cpId, DB.SqlInteger mbrId] >>= 
   return . fmap mbrFromRow . MB.listToMaybe
@@ -70,7 +70,7 @@ mbrGet dbCn cpId mbrId =
 mbrSave :: PG.Connection -> Integer -> Member -> IO Integer
 mbrSave dbCn cpId Member{firstName=first,lastName=last,acceptedOn=acc}=do
   DB.run dbCn "\
-        \insert into Member\
+        \insert into Member \
         \values (\
         \        ?,\
         \        (select coalesce(max(mbrId),0)+1 from Member where cpId=?),\

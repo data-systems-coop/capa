@@ -6,43 +6,35 @@ import Utils
 import Persist.Persist
 import Domain
 import Serialize
+import Service.Base
 
-import Happstack.Lite (path, dir, ServerPart(..), lookBS) 
-import qualified Data.Maybe as MB
-import qualified Data.List as L            
-import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
-                  addGregorianMonthsClip, addGregorianYearsClip)   
 import Data.Map as M
-import Data.Default
-import Data.Aeson (encode, decode)
-import Control.Monad.IO.Class (liftIO)  
-
-import qualified Database.HDBC.PostgreSQL as PG -- remove me
-
-import Control.Monad(guard, void)
-
-import System.Log.Logger as LG
-import Text.Printf(printf)
 
 import Service.Security
 
-postAllocateToMembers :: PersistConnection -> PG.Connection -> ServerPartR
-postAllocateToMembers ref dbCn = 
-  handleAllocateToMembers ref dbCn >>= okJSResp . snd
+postAllocateToMembers :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+postAllocateToMembers = 
+  handleAllocateToMembers >>= lift . okJSResp . snd
 
-postScheduleAllocateDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
-postScheduleAllocateDisbursal ref dbCn = 
-  do cpId <- getSessionCoopId ref
-     allocateActionStr <- lookBS "allocateAction"
-     let Just allocateAction = decode allocateActionStr
-     disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId
-     okJSResp $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
+postScheduleAllocateDisbursal :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+postScheduleAllocateDisbursal = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  lift $ do 
+    allocateActionStr <- lookBS "allocateAction"
+    let Just allocateAction = decode allocateActionStr
+    disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId
+    okJSResp $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
 
 handleAllocateToMembers ::
-  PersistConnection -> PG.Connection -> 
-   ServerPart (FiscalPeriod, (M.Map Member (MemberEquityAction, Rational)))
-handleAllocateToMembers ref dbCn =  
-  do cpId <- getSessionCoopId ref
+  ReaderT (PersistConnection, Connection) 
+          (ServerPartT IO) (FiscalPeriod, (M.Map Member (MemberEquityAction, Rational)))
+handleAllocateToMembers = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  lift $ do 
      overStr <- lookBS "over"
      let Just allocateOver = decode overStr
      liftIO $ do 
@@ -52,14 +44,17 @@ handleAllocateToMembers ref dbCn =
        (name, parameters) <- allocStngGet dbCn cpId
        return $
          (allocateOver, 
-          allocateEquityFor res today (parameters, (M.map MB.fromJust patronage)))
+          allocateEquityFor res today (parameters, (M.map fromJust patronage)))
 
-postAllocationDisbursal :: PersistConnection -> PG.Connection -> ServerPartR
-postAllocationDisbursal ref dbCn = 
-  do cpId <- getSessionCoopId ref
-     (allocateOver, me) <- handleAllocateToMembers ref dbCn
+postAllocationDisbursal :: 
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+postAllocationDisbursal = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  (allocateOver, me) <- handleAllocateToMembers
+  lift $ do 
      (liftIO $ do 
-       LG.infoM "Service.postAllocationDisbursal" $ 
+       infoM "Service.postAllocationDisbursal" $ 
          printf "%d. alloc for %s" cpId (show allocateOver)
        disbursalSchedule <- dsbSchedGet dbCn cpId
        today <- getCurrentDay
@@ -73,33 +68,37 @@ postAllocationDisbursal ref dbCn =
          (scheduleDisbursals today disbursalSchedule)
        ) >>= okJSResp
         
-getAllocation::PersistConnection -> PG.Connection -> ServerPartR 
-getAllocation ref dbCn = do 
-  cpId <- getSessionCoopId ref
-  Just resultOf <- readPeriod "resultOf"
-  (liftIO $ allocGet dbCn cpId resultOf) >>= okJSResp
+getAllocation ::
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getAllocation = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  Just resultOf <- lift $ readPeriod "resultOf"
+  (liftIO $ allocGet dbCn cpId resultOf) >>= (lift . okJSResp)
     
 --get allocation actions
 
-getAllocationDisbursals::PersistConnection -> PG.Connection -> ServerPartR
-getAllocationDisbursals ref dbCn = do 
-  cpId <- getSessionCoopId ref
-  Just resultOf <- readPeriod "resultOf"
+getAllocationDisbursals ::
+  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getAllocationDisbursals = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  Just resultOf <- lift $ readPeriod "resultOf"
   (liftIO $ 
     disbursalGetFor dbCn cpId resultOf >>= 
     mapM 
       (\d -> 
         fmap ((,) d) $ acnGetForDisbursal dbCn cpId resultOf $ dsbPerformedOn d)) >>= 
-    okJSResp
+    (lift . okJSResp)
 {--
-postRescheduleDisbursal::PersistConnection -> PG.Connection -> ServerPartR
+postRescheduleDisbursal::PersistConnection -> Connection -> ServerPartR
 postRescheduleDisbursal ref dbCn = do cpId <- getSessionCoopId ref
   -- read (identifying allocdate, dsbdate) + new date
---postForkDisbursal::PersistConnection -> PG.Connection -> ServerPartR
+--postForkDisbursal::PersistConnection -> Connection -> ServerPartR
   -- read (identifying allocdate, dsbdate) + new date, updated proportion, new proport
---postShiftProportionDisbursals::PersistConnection -> PG.Connection -> ServerPartR
+--postShiftProportionDisbursals::PersistConnection -> Connection -> ServerPartR
   -- read (identifying allocdate, dsbdate from, dsbdate to, proportion)
 --}
 
-readPeriod::String -> ServerPart (Maybe FiscalPeriod)
+readPeriod::String -> ServerPartT IO (Maybe FiscalPeriod)
 readPeriod = fmap decode . lookBS

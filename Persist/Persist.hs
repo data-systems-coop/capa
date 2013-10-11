@@ -108,7 +108,7 @@ snrtyMpngsSaveFor dbCn cpId mpngs = do
   mapM_ 
     (\(ent,lvl) -> 
       DB.run dbCn "\
-          \insert into SeniorityMappings\ 
+          \insert into SeniorityMappings \ 
           \values (\
           \  ?,\
           \  ?,\
