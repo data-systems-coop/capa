@@ -149,7 +149,8 @@ capaApp ref connStr authControl resolveCoopWith hState =
       dir "method" $ path $ (okJSResp . fieldDetails . read) --GET
     , dir "methods" $ nGET >> (okJSResp $ fmap show allocMethods)]
   , dir "export.zip" $ nGET >> w exportAll
-  , dir "logout" $ runReaderT expireSession ref]
+  , dir "logout" $ runReaderT expireSession ref
+  , redirect loginUrl]
 
 g0 = Globals M.empty
 

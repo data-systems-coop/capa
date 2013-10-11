@@ -52,11 +52,16 @@ release/refresh - (config files??)
     -tag last commit
   ->prod:
     -backup db
-    -checkout, build
-    -stop
-    -run db migrate
-    -build/install
-    -start
+    -stash config changes, checkout, unstash
+    -build only (cabal build)
+    -stop (bin/stop.sh)
+    -run db migrate (bin/db-update.sh), manual migration if needed
+    -(rm ~capa/dev/capa/state/Globals/*)
+    -build/install  (cabal install)
+    -remove nohup (rm nohup.out)
+    -start (bin/start.sh)
+    -chmod nohup.out
+      
 
   prod->:
     -backup db
