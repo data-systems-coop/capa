@@ -30,7 +30,13 @@ mbrGetAll dbCn cpId asOf =
          \       acceptedOn,\ 
          \       coalesce(\
          \         (select sum(amount) \
-         \          from (select amount, performedOn \
+         \          from (select amount * \
+         \                         case when acnType in \
+         \                           ('BuyIn','AllocatePatronageRebate', \
+         \                            'EarnInterest', 'AllocateDelayedNonQualified') \
+         \                           then 1 \    
+         \                         else -1 end as amount, \
+         \                       performedOn \
          \               from MemberEquityAction \ 
          \               where (cpId,mbrId) = (m.cpId,m.mbrId) \
          \               union all \

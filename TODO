@@ -57,9 +57,9 @@ release/refresh - (config files??)
     -stop (bin/stop.sh)
     -run db migrate (bin/db-update.sh), manual migration if needed
     -(rm ~capa/dev/capa/state/Globals/*)
-    -build/install  (cabal install)
+    -build/install  (as root, cabal install)
     -remove nohup (rm nohup.out)
-    -start (bin/start.sh)
+    -start (as root, bin/start.sh)
     -chmod nohup.out
       
 

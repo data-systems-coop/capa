@@ -53,7 +53,7 @@ function loadAction(a){
   var bal = a[2]
   $("#result").append(
     sprintf("<tr><td>%s</td><td>%s</td><td>$%s</td><td>%s</td><td>$%s</td></tr>", 
-       formatGregorianDay(act.performedOn), act.actionType, act.amount, 
+       formatGregorianDay(act.performedOn), act.actionType, amountFormat(act), 
        resFmtd, bal))
 }
 </script>

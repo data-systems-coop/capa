@@ -69,7 +69,7 @@ scheduleDisbursalsFor
     allocatedOnPlus = gregorianDayPlus allocatedOn 
     disbursed = round . ((toRational amount) *)
     makeDisburse on amt = 
-      MemberEquityAction{actionType=DistributeInstallment,amount=(-amt),performedOn=on}
+      MemberEquityAction{actionType=DistributeInstallment,amount=amt,performedOn=on}
 
 scheduleDisbursals :: Day -> DisbursalSchedule -> [Disbursal]
 scheduleDisbursals allocatedOn = 
@@ -83,7 +83,7 @@ gregorianDayPlus day (GregorianDuration years months) =
   addGregorianMonthsClip months $ addGregorianYearsClip years day
 
 runningBalance :: [MemberEquityAction] -> [(MemberEquityAction, Money)]
-runningBalance acns = zip acns $ scanl1 (+) $ fmap amount acns
+runningBalance acns = zip acns $ scanl1 (+) $ fmap acnEffectiveAmount acns
 
 truncateOverflow :: [Rational] -> [Rational]
 truncateOverflow proportions = 

@@ -27,7 +27,7 @@ function appendMemberAllocation(member, allocAction, allocRatio){
   $("#result").append(
 sprintf("<tr id='m%s'><td>%s</td><td>%s (%2.0f%%)</td><td>%s</td></tr>", 
       member.memberId, formatMember(member), 
-      allocAction.amount, allocRatio * 100, allocAction.actionType))
+      amountFormat(allocAction), allocRatio * 100, allocAction.actionType))
 }
 function loadDisbursals(member, alloc, containerId){
   $.post("/member/equity/disburse", 
@@ -35,7 +35,7 @@ function loadDisbursals(member, alloc, containerId){
      var subTableRows = 
        $.map(disburses, function(d){
   	  return sprintf("<tr><td>%s</td><td>%s</td><td>%s</td></tr>", 
-	  	  d.amount, d.actionType, formatGregorianDay(d.performedOn))
+	  	  amountFormat(d), d.actionType, formatGregorianDay(d.performedOn))
         }).join(" ")
      $(containerId).append(
        sprintf("<td><table><thead>" + 

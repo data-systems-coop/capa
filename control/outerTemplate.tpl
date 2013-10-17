@@ -102,6 +102,17 @@ function actionTypePicker(id){
     $(id).append(sprintf("<option value='%s'>%s</option>",typ.value, typ.label))
   })
 }
+function formatAccountType(typeId){
+  //object map of value -> label pairs
+  //lookup(value)
+}
+
+function amountFormat(action){
+  return (["BuyIn", "AllocatePatronageRebate", 
+           "EarnInterest", 
+           "AllocateDelayedNonQualified"].indexOf(action.actionType) != -1 ? 
+          1 : -1 ) * action.amount
+}
 function monthPicker(id){
   [[1,"January"],[2,"February"],[3,"March"],[4,"April"],
     [5,"May"],[6,"June"],[7,"July"],[8,"August"],[9,"September"],

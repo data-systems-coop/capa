@@ -89,7 +89,7 @@ acnGetFor dbCn cpId mbrId acctId = do
     \        on (aa.cpId, aa.resultOf) = (a.cpId, a.resultOf) \
     \  union all \
     \  select 'DistributeInstallment', \
-    \         f.surplus * allocatedRatio * -dsbProportion as amount, \
+    \         f.surplus * allocatedRatio * dsbProportion as amount, \
     \         dsbPerformedOn, \
     \         (a.resultOf).prdStart, \
     \         (a.resultOf).prdType, \
@@ -122,7 +122,7 @@ acnGetForDisbursal dbCn cpId resultOf performedOn = do
   let (prdStartDay, prdType) = prdToSql resultOf
   (quickQuery' dbCn "\
      \select d.dsbPerformedOn, \
-     \       fr.surplus * aa.allocatedRatio * -d.dsbProportion as amount, \
+     \       fr.surplus * aa.allocatedRatio * d.dsbProportion as amount, \
      \       m.mbrId, \
      \       m.firstName, \
      \       m.lastName, \

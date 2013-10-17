@@ -9,6 +9,7 @@ module Types(
 
 import Data.Ratio ((%))
 import qualified Data.Map as M
+import qualified Data.Set as S
 
 import Type.Base
 import Type.WorkPatronage
@@ -40,6 +41,14 @@ data EquityActionType =   --migrate all actions in db, + name changes
   AllocateDelayedNonQualified
    deriving (Show, Read, Eq, Ord, Data, Typeable)  
             
+acnEffectiveAmount MemberEquityAction{ actionType = actionType, amount = amount } 
+  | S.member 
+      actionType 
+      (S.fromList 
+         [BuyIn, AllocatePatronageRebate, EarnInterest, AllocateDelayedNonQualified]) = 
+        amount
+  | otherwise = -amount
+
 data MemberEquityAccount = MemberEquityAccount {  -- acct
   ida::Integer,
   accountType::EquityAccountType
