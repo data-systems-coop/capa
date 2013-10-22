@@ -7,7 +7,15 @@ document.write('<script type="text/javascript" src="' + ('https:'==document.loca
 <script type="text/javascript">
 window.jslogger = new JSLogger({apiKey: "5202804a4d1c96595a000025", track:true});
 </script>
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
 
+  ga('create', 'UA-45079819-1', 'camp.coop');
+  ga('send', 'pageview');
+</script>
 <link href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/css/bootstrap.min.css" rel="stylesheet" media="screen"/>
 <link href="//cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.1.3/css/bootstrap-datepicker.min.css" rel="stylesheet"/>
 <script src="//code.jquery.com/jquery.js"></script>
