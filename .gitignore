@@ -1,3 +1,4 @@
+/control/js/*
 /etc/prod.txt
 /bin/ext/liquibase/*
 /nohup.out

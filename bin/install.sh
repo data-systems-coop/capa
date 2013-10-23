@@ -57,3 +57,4 @@ bin/db-update-smoketest.sh
 -- SETUP ROOT LAUNCH
 -- as root, ln -s ~capa/bin/capa /usr/bin
 (bin/stop.sh) || (rm nohup.out; bin/db-update.sh; bin/start.sh; sleep 0.5; tail nohup.out)
+

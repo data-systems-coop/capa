@@ -16,20 +16,15 @@ window.jslogger = new JSLogger({apiKey: "5202804a4d1c96595a000025", track:true})
   ga('create', 'UA-45079819-1', 'camp.coop');
   ga('send', 'pageview');
 </script>
-<link href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/css/bootstrap.min.css" rel="stylesheet" media="screen"/>
-<link href="//cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.1.3/css/bootstrap-datepicker.min.css" rel="stylesheet"/>
-<script src="//code.jquery.com/jquery.js"></script>
-<script src="//malsup.github.io/jquery.form.js"> </script> 
-<script src="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.2/js/bootstrap.min.js">
-</script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.1.3/js/bootstrap-datepicker.min.js">
-</script>
-<script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js">
-</script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/jquery-url-parser/2.3.1/purl.min.js">
-</script>
-<script src="//cdnjs.cloudflare.com/ajax/libs/jquery.mask/0.9.0/jquery.mask.min.js">
-</script>
+<link href="/js/bootstrap/bootstrap.min.css" rel="stylesheet" media="screen"/>
+<link href="/js/bootstrap-datepicker/bootstrap-datepicker.min.css" rel="stylesheet"/>
+<script src="/js/jquery/jquery.js"></script>
+<script src="/js/jquery.form/jquery.form.js"></script> 
+<script src="/js/bootstrap/bootstrap.min.js"></script>
+<script src="/js/bootstrap-datepicker/bootstrap-datepicker.min.js"></script>
+<script src="/js/sprintf/sprintf.min.js"></script>
+<script src="/js/purl/purl.min.js"></script>
+<script src="/js/jquery.mask/jquery.mask.min.js"></script>
 <script>
 
 //library
