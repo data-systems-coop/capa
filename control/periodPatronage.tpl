@@ -49,7 +49,19 @@ function appendPatronage(memberPatronage, fieldInfo){
   fieldInfo.forEach(function(el){    
     row += sprintf("<td>%s</td>", patronage[el.ptrngFldLabel])
   })
+  //should only be enabled if fiscal period is unallocated
+  row += 
+    sprintf("<td><a href='#' onclick='removePatronage(%s);'>x</a></td>",
+            JSON.stringify(memberPatronage))
   $("#patronage").append(row + "</tr>")
+}
+function removePatronage(mp){
+  var member = mp[0]
+  var patronage = mp[1]
+  $.post(sprintf('/member/%s/patronage/%s/delete', 
+                 member.memberId, 
+                 encodeURI(JSON.stringify(patronage.performedOver))),
+         function(){ $("[name='period']").change() })
 }
 </script>
 <table class="table">
@@ -57,6 +69,7 @@ function appendPatronage(memberPatronage, fieldInfo){
   <th>Member</th><th id="work">Productive Hours</th>
   <th id="skillWeightedWork">Wages</th><th id="seniority">Seniority</th>
   <th id="quality">Quality</th><th id="revenueGenerated">Revenue Generated</th>
+  <th></th>
 </tr></thead>
 <tbody id="patronage">
 </tbody>
@@ -70,6 +83,10 @@ function setupUnrecordedPicker(members){
     $.each(members, function(i,member){
       appendMember(member)
     })   
+    if(members.length == 0)
+      $("#unrecordedPicker").hide()
+    else
+      $("#unrecordedPicker").show()
 }
 function appendMember(member){
   $("#memberId").append(
@@ -79,7 +96,7 @@ function appendMember(member){
 <div class="row">
 <div class="span3">
 
-<div class="input-append">
+<div class="input-append" id="unrecordedPicker">
 <select name="memberId" id="memberId"></select>
 <button type="submit" class="btn">Enter Patronage</button>
 </div>

@@ -21,7 +21,8 @@ import Control.Monad.IO.Class (liftIO)
 instance ToJSON Cooperative where   
   toJSON Cooperative{cooperativeId=id,name=nm,username=usr,usageStart=strt,usageEnd=end,
                      fiscalCalendarType=cal} = 
-    object ["cooperativeId" .= id, "name" .= nm, "username" .= usr, "usageStart" .= strt,
+    object ["cooperativeId" .= id, "name" .= nm, "username" .= usr, 
+            "usageStart" .= strt,
             "usageEnd" .= end, "fiscalCalendarType" .= toJSON cal]
 
 instance ToJSON Member where
@@ -39,7 +40,7 @@ instance ToJSON WorkPatronage where
 	 	 "skillWeightedWork" .= skillWeightedWork, 
 		 "seniority" .= seniority, "quality" .= quality,
 		 "revenueGenerated" .= revenueGenerated, 
-		 "performedOver" .= AG.toJSON prf]
+		 "performedOver" .= toJSON prf]
 
 instance ToJSON PatronageWeights where
   toJSON PatronageWeights{workw=workw,skillWeightedWorkw=skillWeightedWorkw,

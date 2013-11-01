@@ -102,8 +102,7 @@ stngExportFor dbCn cpId file =
     DB.run dbCn ("COPY (select *, (select string_agg( (afterAllocation).years || 'yrs' || (afterAllocation).months || 'mos' || ' ' || proportion*100 || '%', ',') from DisbursalSchedule where cpId = " ++ (show cpId) ++ ") as disbursalScheduleList from Cooperative inner join CoopSettings using (cpId) where cpId = " ++ (show cpId) ++ ") TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []
 
 --SeniorityMappings
-snrtyMpngsSaveFor :: 
-  Connection -> Integer -> SeniorityMappings -> IO ()
+snrtyMpngsSaveFor :: Connection -> Integer -> SeniorityMappings -> IO ()
 snrtyMpngsSaveFor dbCn cpId mpngs = do 
   mapM_ 
     (\(ent,lvl) -> 

@@ -38,28 +38,53 @@ function loadAllocationSettings(){
     $("#allocMethod").append(method)
     allocMethodFields.forEach(function(e){
       if(!fieldInfo.some(function(f){return f.ptrngFldLabel == e})){
-        $("#" + e).remove()
+        $("." + e).remove()
       }else{
         $("#" + e + "w").append(wghts[e + "w"])
       }
     })
   })
+  loadSeniorityLevels()
 }
 </script>
 <div class="row">
 <div class="span7">
 <p> Allocation Method: <span id="allocMethod"/> </p>
-<div id="work"><p> Hours Weight: <span id="workw"/> </p></div>
-<div id="skillWeightedWork"><p> Wages Weight: 
+<div class="work"><p> Hours Weight: <span id="workw"/> </p></div>
+<div class="skillWeightedWork"><p> Wages Weight: 
   <span id="skillWeightedWorkw"/> </p></div>
-<div id="seniority"><p> Seniority Weight: <span id="seniorityw"/> </p></div>
-<div id="quality"><p> Quality Weight: 
+<div class="seniority"><p> Seniority Weight: <span id="seniorityw"/> </p></div>
+<div class="quality"><p> Quality Weight: 
   <span id="qualityw"/> </p></div>
-<div id="revenueGenerated"><p> Revenue Generated Weight: 
+<div class="revenueGenerated"><p> Revenue Generated Weight: 
   <span id="revenueGeneratedw"/> </p></div>
 </div>
 </div>
 
+<script>
+function formatSeniorityLevel(l){
+  return sprintf("<td>%s</td><td>%s</td>", l[0].start, l[1])
+}
+function loadSeniorityLevels(){
+  $.getJSON("/coop/settings/allocate/seniority/levels", function(sls){
+    $.each(sls, function(i, l) {
+       $("#seniorityLevelsRows").append(
+          sprintf("<tr>%s</tr>", formatSeniorityLevel(l)))
+    })
+ })
+}
+</script>
+<div class="row">
+<div class="span7">
+<div class="seniority">
+<p> Seniority Levels
+<table class="table">
+<thead><tr><th>Start Year</th><th>Level</th> </thead>
+<tbody id="seniorityLevelsRows"></tbody>
+</table>
+</div>
+</div>
+</div>
 
 <script>
 function formatDisbursal(d){

@@ -1,10 +1,18 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.min.css" rel="stylesheet" media="screen"/>
-<script src="//code.jquery.com/jquery.js"></script>
-<script src="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/js/bootstrap.min.js"></script>
-<script src="https://raw.github.com/alexei/sprintf.js/master/src/sprintf.min.js"></script>
+<link href="/js/bootstrap/bootstrap.min.css" rel="stylesheet" media="screen"/>
+<script src="/js/jquery/jquery.js"></script>
+<script src="/js/bootstrap/bootstrap.min.js"></script>
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-45079819-1', 'camp.coop');
+  ga('send', 'pageview');
+</script>
 <script>
 (function() {
     if (typeof window.janrain !== 'object') window.janrain = {};
@@ -86,6 +94,7 @@ body {
    <li>make a small contribution to the worker coop community
    <li>learn deeper about accounting software needs in worker coops
    <li>practice creating and maintaining a software service
+   <li>maximize collaboration with other worker coops every step of the way
   </ul>
 </div>
 <div class="span4">
@@ -97,18 +106,21 @@ body {
     <li>technologically up-to-date implementation*
     <li>open source
     <li>easy to export data, leave the system
-    <li>no plan to add major features unless we choose to expand this project in the future or users approach us to fund adding major features
+    <li>no current plans to add major features**
   </ul>
 </div>
 </div>
 
 <div class="row">
-  <p><small>*into the foreseeable future, contingent on the financial health of Data Systems</small>
+  <p><small>*into the foreseeable future, contingent on the financial health of Data Systems</small><br>
+  <small>**we may elect to grow this project at a later point or implement features users wish to fund</small>
   <dl class="dl-horizontal">
+  <dt>Help</dt>
+  <dd><small>Initial training <a href='https://docs.google.com/document/d/1Sx--N-3NLLTo-YgIzhlfZsGBKt7k_wlrgc3pf_aSaQg'>documentation</a>. Do not hesitate to email us at support AT camp.coop. </small></dd>
   <dt>Supporting CAMP</dt>
   <dd><small>If you find this application useful, you can <a href='https://www.wepay.com/donations/capa-development-operations-maintenance'>learn more</a> about the costs involved in producing and maintaining it, and a method of donating.</small></dd>
   <dt>Local Installations</dt>
-  <dd><small>Obtain the <a href='https://github.com/data-systems-coop/capa'>source code</a>. For support in setting up or extensively modifying a local instance of CAMP, please contact Data Systems for availability and rates. </small></dd>
+  <dd><small>Obtain the <a href='https://github.com/data-systems-coop/capa'>source code</a>. For support in creating or extensively modifying a local instance of CAMP, please contact Data Systems for rates. </small></dd>
   <dt>Credits</dt>
   <dd><small>Karin Anderson, Kanishka Azimi, Scott Bradley, Erbin Crowell, Aaron Desrochers, Will Desrochers, Roberta Eidman, Yochai Gal, Melissa Hoover, Amy Johnson, Koumbit staff, Mike Leung, Casey Lyons, Jason Mott, Katie Ormiston, Cody Rock, Marc Rudnick, Colin Sagan, Sarah Snider, Jason Storer, Charles Uchu Strader. Special thanks to Erbin for the original idea.</small></dd>
   </dl>

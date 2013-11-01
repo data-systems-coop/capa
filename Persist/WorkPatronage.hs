@@ -14,8 +14,9 @@ import qualified Database.HDBC as DB
 import Persist.Member
 
 ptrngGetFor 
-  :: PG.Connection -> Integer -> FiscalPeriod -> IO (M.Map Member (Maybe WorkPatronage))
-ptrngGetFor dbCn cpId performedOver = do 
+  :: PG.Connection -> Integer -> FiscalPeriod -> SeniorityMappings -> 
+     IO (M.Map Member (Maybe WorkPatronage))
+ptrngGetFor dbCn cpId performedOver snrtyMpngs = do 
   let FiscalPeriod{start=GregorianMonth yr mo, periodType=prdType} = performedOver
   let prdStartDay = fromGregorian yr mo 1
   res <- DB.quickQuery' dbCn "\
@@ -37,16 +38,17 @@ ptrngGetFor dbCn cpId performedOver = do
     \ using (cpId,mbrId) \
     \where cpId = ?"
     [DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType, DB.SqlInteger cpId]
-  let ms = fmap mbrFromRow res
-  let ps = 
+  let mps = 
         fmap 
          (\row -> 
-            let prow = drop 4 row
-            in if (head prow) == DB.SqlNull
-               then Nothing
-               else Just $ ptrngFromRow performedOver prow)
+            let mbr = mbrFromRow row
+                prow = drop 4 row
+            in (mbr,
+                if (head prow) == DB.SqlNull
+                then Nothing
+                else Just $ ptrngFromRow performedOver prow mbr snrtyMpngs))
          res
-  return (M.fromList $ zip ms ps)
+  return $ M.fromList mps
   
 ptrngSaveFor :: PG.Connection -> Integer -> Integer -> WorkPatronage -> IO ()
 ptrngSaveFor dbCn cpId mbrId 
@@ -69,6 +71,17 @@ ptrngSaveFor dbCn cpId mbrId
      DB.SqlInteger ql, DB.SqlInteger rvg]
   DB.commit dbCn  
   
+ptrngDelete :: PG.Connection -> Integer -> Integer -> FiscalPeriod -> IO ()
+ptrngDelete dbCn cpId mbrId performedOver = do
+  let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = performedOver
+  let prdStartDay = fromGregorian yr mo 1
+  DB.run dbCn "\
+    \delete from WorkPatronage \
+    \where (cpId, mbrId, (performedOver).prdStart, (performedOver).prdType) = (?,?,?,?) "
+    [DB.SqlInteger cpId, DB.SqlInteger mbrId, DB.SqlLocalDate prdStartDay, 
+     DB.SqlString $ show prdType]
+  DB.commit dbCn  
+
 ptrngExportFor :: PG.Connection -> Integer -> String -> IO () 
 ptrngExportFor dbCn cpId file = 
   void $ 
@@ -76,12 +89,14 @@ ptrngExportFor dbCn cpId file =
 
 
 
-ptrngFromRow :: FiscalPeriod -> [DB.SqlValue] -> WorkPatronage
-ptrngFromRow performedOver (work:skillWeightedWork:quality:revenueGenerated:_) = 
-  WorkPatronage 
-    (DB.fromSql work)
-    (DB.fromSql skillWeightedWork)
-    0
-    (DB.fromSql quality)
-    (DB.fromSql revenueGenerated)
-    performedOver
+ptrngFromRow :: 
+  FiscalPeriod -> [DB.SqlValue] -> Member -> SeniorityMappings -> WorkPatronage 
+ptrngFromRow 
+  performedOver (work:skillWeightedWork:quality:revenueGenerated:_) mbr mpngs = 
+    WorkPatronage 
+     (DB.fromSql work)
+     (DB.fromSql skillWeightedWork)
+     (mbrSeniorityLevelFor mbr performedOver mpngs)
+     (DB.fromSql quality)
+     (DB.fromSql revenueGenerated)
+     performedOver

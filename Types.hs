@@ -41,6 +41,7 @@ data EquityActionType =   --migrate all actions in db, + name changes
   AllocateDelayedNonQualified
    deriving (Show, Read, Eq, Ord, Data, Typeable)  
             
+acnEffectiveAmount :: MemberEquityAction -> Money 
 acnEffectiveAmount MemberEquityAction{ actionType = actionType, amount = amount } 
   | S.member 
       actionType 
@@ -63,6 +64,24 @@ data Member = Member { -- mbr
   memberId::Integer,
   acceptedOn::Day
 } deriving (Show, Eq, Ord, Data, Typeable)
+
+mbrSeniorityLevel :: Member -> Day -> SeniorityMappings -> SeniorityLevel
+mbrSeniorityLevel Member{acceptedOn=acceptedOn} now snrtyMap = 
+  let years = diffYears acceptedOn now
+  in M.foldlWithKey 
+       (\lvlSoFar SeniorityMappingEntry{snrtyMpEntStart=start} lvl -> 
+         if years > start then lvl else lvlSoFar)
+       1
+       snrtyMap
+                                                                         
+mbrSeniorityLevelFor :: Member -> FiscalPeriod -> SeniorityMappings -> SeniorityLevel
+mbrSeniorityLevelFor m FiscalPeriod{start=start} mp = 
+  mbrSeniorityLevel m (toDay start) mp
+
+diffYears :: Day -> Day -> Integer
+diffYears earlier later = 
+  year later - year earlier
+  where year d = let (y,_,_) = toGregorian d in y
 
 data FinancialResults = FinancialResults { -- rslt
   over::FiscalPeriod,

@@ -18,9 +18,8 @@ function loadCoop(){
 }
 </script>
 <div class="row">
-<div class="span5">
-<h3><span id="name"/> [<span id="usageDates"/>-Present]</h3>
-</div>
+<div class="span4"><h3><span id="name"/></h3></div>
+<div class="span2">[<span id="usageDates"/>-Present]</div>
 </div>
 
 

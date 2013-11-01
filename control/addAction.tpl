@@ -31,12 +31,14 @@ function setupForm(){
   $("[name='resultOf']").prepend("<option value=''>None</option>")
   actionTypePicker("[name='actionType']")
   datePickerDflt("[name='performedOn']")
-  $('form').ajaxForm({  // nice to have use URL to reload account one came from
+  var returnTo = 
+    sprintf("/control/members/accounts?mbrId=%s", $("[name='mbrId']").val())
+  $('form').ajaxForm({ 
        success: function(){
-         redirect("/control/members/accounts")
+         redirect(returnTo)
        }
     })
-  $("a:contains('Cancel')").attr("href","/control/members/accounts")
+  $("a:contains('Cancel')").attr("href",returnTo)
 }
 </script>
 <form method="POST" action="/member/equity/history"> 

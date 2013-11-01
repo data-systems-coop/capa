@@ -15,7 +15,7 @@ import Service.Security
 authenticatedForRegister :: String -> String -> ServerPartR
 authenticatedForRegister authUriBase registerUrl = do 
   retrieveProfile authUriBase >>= 
-    redirect . (registerUrl ++) --url escape
+    redirect . (registerUrl ++) . urlEncode --url escape
 
 getCoopRegistrationState :: 
   ReaderT (PersistConnection, Connection) (ServerPartT IO) (Bool, Bool)
@@ -54,10 +54,10 @@ putCoopAllocateSettings = do
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
-      allocMethod <- lookRead "allocationMethod" 
-      pw <- lookPatronageWeights allocMethod
-      sm <- lookSeniorityMappings allocMethod
-      (liftIO $ saveCoopAllocateSettings dbCn cpId allocMethod pw sm) >>= okJSResp
+    allocMethod <- lookRead "allocationMethod" 
+    pw <- lookPatronageWeights allocMethod
+    sm <- lookSeniorityMappings allocMethod
+    (liftIO $ saveCoopAllocateSettings dbCn cpId allocMethod pw sm) >>= okJSResp
 
 getAllocMethodDetail :: 
   ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
@@ -86,11 +86,12 @@ lookSeniorityMappings method
       return Nothing
   | otherwise = do 
       snrtyLvlsStr <- lookBS "seniorityLevels"
-      let Just snrtyLvls = (decode snrtyLvlsStr)::Maybe [SeniorityMappingEntry]
-      return $ Just $ M.fromList $ zip snrtyLvls [1 .. toInteger (length snrtyLvls)]
+      let Just snrtyLvls = 
+            (decode snrtyLvlsStr)::Maybe [(SeniorityMappingEntry,SeniorityLevel)]
+      return $ Just $ M.fromList $ snrtyLvls
       
 allocMethods :: [AllocationMethod]
-allocMethods = [ProductiveHours, Wages, SimpleMix] --, SeniorityMix], ElaborateMix]
+allocMethods = [ProductiveHours, Wages, SimpleMix, SeniorityMix]--, ElaborateMix]
 
 fieldDetails :: AllocationMethod -> [PatronageFieldDetail]
 fieldDetails ProductiveHours =  [workFieldDetail]

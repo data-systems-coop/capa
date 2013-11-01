@@ -9,7 +9,7 @@ import Domain
 import Serialize
 import Service.Base
 
-import Happstack.Lite (path, dir) 
+import Happstack.Lite (path, dir, nullDir) 
 import Data.Map as M
 
 import qualified Data.ByteString.Lazy.Char8 as LB 
@@ -28,14 +28,8 @@ lookPatronage method performedOver =
     _ -> do
       work <- lookRead "work"
       skillWeightedWork <- lookRead "skillWeightedWork"
-      case method of 
-        SimpleMix -> 
-          return def{work=work,skillWeightedWork=skillWeightedWork,
-                     performedOver=performedOver}
-        _ -> do
-          seniority <- lookRead "seniority"
-          return def{work=work,skillWeightedWork=skillWeightedWork,
-                               seniority=seniority,performedOver=performedOver}
+      return def{work=work,skillWeightedWork=skillWeightedWork,
+                 performedOver=performedOver}
 
 putMemberPatronage 
   :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
@@ -44,10 +38,22 @@ putMemberPatronage = do
   dbCn <- asks snd
   lift $ path $ \(idIn::Integer) -> 
     dir "patronage" $ path $ \(performedOverStr::String) -> do
+        nullDir
 	let Just performedOver = decode $ LB.pack performedOverStr        
         (allocMethod, _) <- liftIO $ allocStngGet dbCn cpId
         lookPatronage allocMethod performedOver >>= 
           (liftIO . ptrngSaveFor dbCn cpId idIn) >>= okJSResp
+
+deleteMemberPatronage 
+  :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+deleteMemberPatronage = do 
+  cpId <- withReaderT fst getSessionCoopId
+  dbCn <- asks snd
+  lift $ path $ \(idIn::Integer) -> 
+    dir "patronage" $ path $ \(performedOverStr::String) -> 
+     dir "delete" $ do 
+	let Just performedOver = decode $ LB.pack performedOverStr        
+        (liftIO $ ptrngDelete dbCn cpId idIn performedOver) >>= okJSResp
 
 getAllMemberPatronage 
   :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
@@ -56,7 +62,10 @@ getAllMemberPatronage = do
   dbCn <- asks snd
   lift $ path $ \(fiscalPeriodStr::String) -> do
     let Just fiscalPeriod = decode $ LB.pack fiscalPeriodStr
-    mpAll <- liftIO $ ptrngGetFor dbCn cpId fiscalPeriod 
+    mpAll <- 
+      liftIO $ do
+        mpngs <- snrtyMpngsGet dbCn cpId
+        ptrngGetFor dbCn cpId fiscalPeriod mpngs
     let (mp, mu) = M.partition isJust mpAll
     okJSResp $ (mp, M.keys mu)
 

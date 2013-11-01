@@ -12,6 +12,8 @@ import Data.Map as M
 
 import Service.Security
 
+import Control.Monad.Reader
+
 postAllocateToMembers :: 
   ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
 postAllocateToMembers = 
@@ -35,16 +37,21 @@ handleAllocateToMembers = do
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
-     overStr <- lookBS "over"
-     let Just allocateOver = decode overStr
-     liftIO $ do 
-       today <- getCurrentDay
-       Just res <- rsltGetForOver dbCn cpId allocateOver
-       patronage <- ptrngGetFor dbCn cpId allocateOver     
-       (name, parameters) <- allocStngGet dbCn cpId
-       return $
-         (allocateOver, 
-          allocateEquityFor res today (parameters, (M.map fromJust patronage)))
+    overStr <- lookBS "over"
+    let Just allocateOver = decode overStr
+    liftIO $ do 
+      today <- getCurrentDay
+      Just res <- rsltGetForOver dbCn cpId allocateOver
+      mpngs <- snrtyMpngsGet dbCn cpId
+      patronage <- ptrngGetFor dbCn cpId allocateOver mpngs
+      (name, parameters) <- allocStngGet dbCn cpId
+      let acts = 
+            runReader 
+              (allocateEquityFor res today (parameters, (M.map fromJust patronage))) 
+              mpngs
+      return $
+        (allocateOver, acts)
+
 
 postAllocationDisbursal :: 
   ReaderT (PersistConnection, Connection) (ServerPartT IO) Response

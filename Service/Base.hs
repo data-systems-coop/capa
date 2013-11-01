@@ -3,7 +3,8 @@ module Service.Base(
   module Control.Monad.Reader,
   ServerPartT, Response(..), ok, toResponseBS, look, lookBS, 
   Connection,
-  encode, decode
+  encode, decode,
+  urlEncode
 ) where
 
 import Control.Monad.IO.Class (liftIO)  
@@ -13,3 +14,4 @@ import Happstack.Server(ServerPartT, Response(..), ok, toResponseBS, look, lookB
 import Database.HDBC.PostgreSQL(Connection)
 import Control.Monad(guard, void)
 import Data.Aeson (encode, decode)
+import Network.HTTP.Base(urlEncode)

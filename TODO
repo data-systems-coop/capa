@@ -53,14 +53,15 @@ release/refresh - (config files??)
   ->prod:
     -backup db
     -stash config changes, checkout, unstash
-    -build only (cabal build)
+    -build only (cabal configure; cabal build)
     -stop (bin/stop.sh)
     -run db migrate (bin/db-update.sh), manual migration if needed
     -(rm ~capa/dev/capa/state/Globals/*)
     -build/install  (as root, cabal install)
+    -fetch js packages (./fetch-js-libs.sh)
     -remove nohup (rm nohup.out)
     -start (as root, bin/start.sh)
-    -chmod nohup.out
+    -chmod 777 nohup.out
       
 
   prod->:

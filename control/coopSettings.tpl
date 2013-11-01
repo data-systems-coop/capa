@@ -40,7 +40,7 @@ function setupForm(){
    $("input[value='ProductiveHours']").prop('checked',true)
    $("[name='allocationMethod']").change()
   })
-  loadSeniorityLevels([{"start":0,"end":2},{"start":3,"end":5}])
+  loadSeniorityLevels([[{"start":0},1]])
   setupAddLevel()
   //scrap this, just use regular decimal number instead of %
   $('form').submit(function(){
@@ -80,7 +80,7 @@ function setupForm(){
           </div>
 
           <div class="seniority">
-	  <label for="seniorityw">Seniotity Weight</label>
+	  <label for="seniorityw">Seniority Weight</label>
 	  <div class="input-append">
 	    <input type="text" class="input-mini" name='seniorityw'>
 	    <span class="add-on">%</span>
@@ -104,22 +104,29 @@ function setupForm(){
           </div>
     </div>
 </div>
-	  <script>
-	  function formatLevel(level){
-	    return sprintf("%s - %s", level.start, level.end)
-	  }
-	  function loadSeniorityLevels(levels){
-	    $("#seniorityLevelRows").data("d", levels)
-	    saveToHidden()
-	    $("#seniorityLevelRows").empty()
-	    levels.forEach(function(l){
-	      $("#seniorityLevelRows").append(sprintf("<tr><td>%s</td><td>X</td></tr>", formatLevel(l)))
-	    })
-          }
-	  function saveToHidden(){
-	    $("#seniorityLevels").val(JSON.stringify($("#seniorityLevelRows").data("d")))
-	  }
-	  </script>  
+
+
+<script>
+function formatLevel(l){
+  return sprintf("<tr><td>%s</td><td>%s</td><td><a href='#' onclick='removeLevel(%s);'>x</a></td></tr>", l[0].start, l[1], JSON.stringify(l))
+}
+function loadSeniorityLevels(levels){
+  $("#seniorityLevelRows").data("d", levels)
+  saveToHidden()
+  $("#seniorityLevelRows").empty()
+  levels.forEach(function(l){
+    $("#seniorityLevelRows").append(formatLevel(l))
+  })
+}
+function saveToHidden(){
+  $("#seniorityLevels").val(
+     JSON.stringify($("#seniorityLevelRows").data("d")))
+}
+function removeLevel(l){
+  var arr = $("#seniorityLevelRows").data("d")
+  loadSeniorityLevels(arr.filter(function(v){return !(v[0].start == l[0].start)}))
+}
+</script>  
 
 <div class="seniority">
 <div class="row">
@@ -131,7 +138,7 @@ function setupForm(){
     <div class="span2">	  
 	  <input type="hidden" name="seniorityLevels" id="seniorityLevels">
 	  <table class="table">
-	    <thead><tr><th>Years</th><th></th></tr></thead>
+	    <thead><tr><th>Start Year</th><th>Level</th><th></th></tr></thead>
  	    <tbody id="seniorityLevelRows"></tbody>
 	  </table>
 	  <button type="button" class="btn btn-small" data-toggle="modal" data-target="#addModal">Add Level</button>
@@ -157,14 +164,20 @@ function yearCountPicker(id){
     $(id).append(sprintf("<option>%s</option>", y))
   })
 }
+function seniorityLevelPicker(id){
+  var levels = [1,2,3,4,5,6,7]
+  levels.forEach(function(l){
+    $(id).append(sprintf("<option>%s</option>", l))
+  })
+}
 function setupAddLevel(){
   yearCountPicker("#startYear")
-  yearCountPicker("#endYear")
+  seniorityLevelPicker("#seniorityLevel")
   $("#addButton").click(function(){
-    var startYear = $("#startYear").val()
-    var endYear = $("#endYear").val()
+    var startYear = parseInt($("#startYear").val())
+    var seniorityLevel = parseInt($("#seniorityLevel").val())
     var arr = $("#seniorityLevelRows").data("d")
-    loadSeniorityLevels(arr.concat({start:startYear, end:endYear}))
+    loadSeniorityLevels(arr.concat([[{start:startYear}, seniorityLevel]]))
     $("#addModal").modal('hide')
   })
 }
@@ -178,8 +191,8 @@ function setupAddLevel(){
   <div class="modal-body">
       <label for="startYear">Start Year</label>
       <select id="startYear"></select>
-      <label for="endYear">End Year</label>
-      <select id="endYear"></select>
+      <label for="seniorityLevel">Level</label>
+      <select id="seniorityLevel"></select>
   </div>
   <div class="modal-footer">
     <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>

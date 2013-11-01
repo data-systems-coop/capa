@@ -40,15 +40,10 @@ function saveToHidden(){
   $("#disbursalSchedule").val(JSON.stringify($("#disbursalScheduleRows").data("d")))
 }
 function removeDisbursal(d){
-  /* figure which one to remove, remove
-  var disb = 
-      [[{years: parseInt($("#years").val()), months: parseInt($("#months").val())}, 
-       intToPercent("#proportion")]]
-  */
   var arr = $("#disbursalScheduleRows").data("d")
   loadDisbursalSchedule(
     arr.filter(
-      function(v){v.years == d.years && v.months == d.months}))
+      function(v){return !(v[0].years == d[0].years && v[0].months == d[0].months)}))
 }
 </script>
 <div class="row">

@@ -8,12 +8,18 @@ $(document).ready(function(){
 })
 
 function loadAllFinancialResults(){
+  $("#results").empty()
   $.getJSON("/financial/results",function(data){
      $("#results").data("results", data)
      $.each(data, function(i,r){
        appendFinancialResults(r)
      })
    })
+}
+function removeFinancialResults(r){
+  $.post("/financial/results/delete",{over:JSON.stringify(r.over)}, function(){
+    loadAllFinancialResults()
+  })
 }
 function appendFinancialResults(res){
   var alloc = 
@@ -22,11 +28,18 @@ function appendFinancialResults(res){
         '<a href="/control/equity/members/allocationsDisbursals?over=%s"' + 
 	' class="btn btn-primary">Allocate</a>', encodeURI(JSON.stringify(res.over))) :
       formatGregorianDay(res.allocatedOn)  //eventually link to allocation view
+  var remove = 
+    (res.allocatedOn == null) ?
+        sprintf(
+           "<a href='#' class='btn' onclick='removeFinancialResults(%s);'>Delete</a>",
+           JSON.stringify(res)) : 
+      ""
   var row = 
-     sprintf('<tr><td>%s</td><td>$%s</td><td>%s</td>', 
+     sprintf('<tr><td>%s</td><td>$%s</td><td>%s</td><td>%s</td>', 
          formatFiscalPeriod(res.over), 
          res.surplus, 
-         alloc)
+         alloc,
+         remove)
   $("#results").append(row)
 }
 </script>
@@ -35,7 +48,7 @@ function appendFinancialResults(res){
 <div class="span5">
 <table class="table">
 <thead>
-  <tr><th>Period</th><th>Surplus</th><th>Allocated</th>
+  <tr><th>Period</th><th>Surplus</th><th>Allocated</th><th></th>
 </thead>
 <tbody id="results">
 </tbody>

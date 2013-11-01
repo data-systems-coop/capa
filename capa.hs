@@ -111,7 +111,9 @@ capaApp ref connStr authControl resolveCoopWith hState =
   
   --service router
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
-       nGET >> w getAllFinancialResultsDetail, nPOST >> w putFinancialResults]
+       nGET >> w getAllFinancialResultsDetail, 
+       nPOST >> w putFinancialResults, 
+       dir "delete" $ nPOST >> w deleteFinancialResults]
   , dir "allocation" $ msum [
          nGET >> w getAllocation
        , dir "disburse" $ dir "actions" $ nGET >> w getAllocationDisbursals]
@@ -122,7 +124,9 @@ capaApp ref connStr authControl resolveCoopWith hState =
       , dir "patronage" $ method GET >> w getAllMemberPatronage]
   , dir "member" $ msum [ 
          nPOST >> w putMemberAndAccounts, method GET >> w getMember
-       , method POST >> w putMemberPatronage
+       , msum [ 
+            method POST >> w putMemberPatronage
+          , method POST >> w deleteMemberPatronage]
        , dir "equity" $ msum [
            dir "disburse" $ nPOST >> w postScheduleAllocateDisbursal
          , dir "history" $ nPOST >> w putEquityAction

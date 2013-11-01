@@ -66,6 +66,16 @@ rsltSaveFor dbCn cpId FinancialResults{over=over,surplus=srpls} =
        DB.SqlInteger srpls]
     DB.commit dbCn  
   
+rsltDelete :: PG.Connection -> Integer -> FiscalPeriod -> IO ()
+rsltDelete dbCn cpId over = do 
+  let FiscalPeriod{start=GregorianMonth yr mo,periodType=prdType} = over
+  let prdStartDay = fromGregorian yr mo 1
+  DB.run dbCn "\
+      \delete from FinancialResults \
+      \where (cpId, (rsltOver).prdStart, (rsltOver).prdType) = (?,?,?)"
+      [DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
+  DB.commit dbCn  
+
 rsltExportFor :: PG.Connection -> Integer -> String -> IO () 
 rsltExportFor dbCn cpId file = 
   void $ 

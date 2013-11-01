@@ -2,13 +2,13 @@
 module Type.Base (
   module Type.Base, 
   Data, Typeable,
-  Day, fromGregorian, 
+  Day, fromGregorian, toGregorian,
   module Data.Default
 ) where
 
 import Data.Data(Data, Typeable)  -- allow persist, serialize
 import Data.Time(Day)
-import Data.Time(fromGregorian)
+import Data.Time(fromGregorian, toGregorian)
 import Data.Default
 
 import qualified Data.Map as M
@@ -20,6 +20,8 @@ data FiscalPeriod = FiscalPeriod {  -- prd
 
 data GregorianMonth = GregorianMonth Year Month
   deriving (Show, Read, Eq, Ord, Data, Typeable)
+           
+toDay (GregorianMonth yr mo) = fromGregorian yr mo 1
   
 data PeriodType = Year | Quarter
   deriving (Show, Read, Eq, Ord, Data, Typeable)
