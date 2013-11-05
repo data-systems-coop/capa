@@ -198,6 +198,5 @@ run = do
 
 main :: IO ()
 main = 
-  --log unhandled exceptionsx
   run `EX.catch` 
-    (\e -> infoM "main" $ show ("Server quit due to: ", e::EX.SomeException))
+    (\e -> infoM "main" $ printf "Server quit due to: %s" $ show (e::EX.SomeException))

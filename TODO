@@ -1,10 +1,9 @@
--form validation failures/errors (entry forms) - important still
+-form validation failures/errors (entry forms)
 -change alloc settings, save settings with alloc
 -collective equity account
 -amount trigger delayed disbursals
 -more jquery plugin controls
 -store snapshot of config with it
--cleanup JS include/serving
 -get automated export working again
 -filter deactivated members, accounts
 -add account
@@ -20,18 +19,15 @@
 -migrate to angular
 -apply info vis toolkit
 -load test, more detailed
--more modules, by type
 -orm survey
 -use slicker haskell/js solution, plus cooler js libs
--more monads for cp id, ...
 -tighter db constraints with checks, uniques
--meta data for service -> url or remove named service functions
+-meta data for (service -> url) or remove named service functions
 -improve selection of libraries used
 -period picker shift over time
 -conn pool?
 -decimal places
 -buy in action populate w/accept date
--both accounts display beside each other
 -performance, memory measure
 -project financial health, dev health, dsi financial health status
 --------------------
@@ -94,4 +90,3 @@ dev manual (most custom, specific to more general)
 user manual (core, frequent steps to less frequent)
    -references
    -screen shots + descriptions
-   -getting started guide
