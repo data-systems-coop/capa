@@ -28,6 +28,8 @@ import Data.Either.Utils (forceEither)
 import qualified Data.ConfigFile as CF
 
 import qualified System.Log.Handler.Syslog as SYS
+import System.Environment(getArgs, getProgName)
+import System.Log.Logger(traplogging, Priority)
 
 -- run db action, cleanup conn resources
 withConn :: String -> (PG.Connection -> ServerPartR) -> ServerPartR
@@ -161,30 +163,23 @@ g0 = Globals M.empty
 -- Main.hs
 run :: IO ()  
 run = do
-  --receive config file arg
-  --setup logger
-  s <- SYS.openlog "capa" [] SYS.USER DEBUG
-  -- config should select debug or not    
-  updateGlobalLogger rootLoggerName (addHandler s . setLevel DEBUG)
-  infoM "main" "started"
+  (configFile:_) <- getArgs
+  prog <- getProgName
   --read config
-  val <- CF.readfile CF.emptyCP "etc/dev.txt"
+  val <- CF.readfile CF.emptyCP configFile
   let cp = forceEither val
   let getConfig = forceEither . CF.get cp "DEFAULT" 
-  --read authent config
+  setupLogging prog (forceEither $ CF.get cp "DEFAULT" "rootloglevel")
+  infoM "main" "started"
   let authUriBase = (getConfig "authuribase")::String
-  --read service config
   let servicesUri = (getConfig "servicesuri")::String
-  --build db string
-  let connString = 
+  let connString = --build db string
        printf "host=%s port=%d dbname=%s user=%s password=%s"
          (getConfig "dbhost") ((forceEither $ CF.get cp "DEFAULT" "dbport")::Integer)
          (getConfig "dbname") (getConfig "dbuser") (getConfig "dbpass")
   let webPort = forceEither $ CF.get cp "DEFAULT" "webport"
   socket <- openSocket webPort $ getConfig "webprocessuser"
-  --restart cache
-  x <- openLocalState g0
-  --init template repo
+  x <- openLocalState g0   --restart cache
   ehs <- initTemplateRepo $ getConfig "templatedir"
   either 
     (error . concat) --output init template errors
@@ -196,7 +191,10 @@ run = do
        (resolveCoop authUriBase x)) --provide auth handlers
     ehs 
 
+setupLogging :: String -> Priority -> IO ()
+setupLogging progName rootLogLevel = do 
+  s <- SYS.openlog progName [] SYS.USER DEBUG  
+  updateGlobalLogger rootLoggerName (addHandler s . setLevel rootLogLevel)
+
 main :: IO ()
-main = 
-  run `EX.catch` 
-    (\e -> infoM "main" $ printf "Server quit due to: %s" $ show (e::EX.SomeException))
+main = traplogging "main" ERROR "Server quit due to" run 

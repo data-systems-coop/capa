@@ -1,3 +1,4 @@
+rootloglevel = DEBUG
 dbhost = localhost
 dbport = 5432
 dbname = mydb

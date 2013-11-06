@@ -1,3 +1,3 @@
 #!/bin/sh
 # should check schema on startup
-nohup capa & 
+nohup capa etc/dev.txt & 
