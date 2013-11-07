@@ -115,48 +115,71 @@ capaApp ref connStr authControl resolveCoopWith hState =
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
        nGET >> w getAllFinancialResultsDetail, 
        nPOST >> w putFinancialResults, 
-       dir "delete" $ nPOST >> w deleteFinancialResults]
+       dir "delete" $ 
+         nPOST >> w deleteFinancialResults]
   , dir "allocation" $ msum [
          nGET >> w getAllocation
-       , dir "disburse" $ dir "actions" $ nGET >> w getAllocationDisbursals]
+       , dir "disburse" $ dir "actions" $ 
+           nGET >> w getAllocationDisbursals]
   , dir "members" $ msum [
         nGET >> w getMembers
       , dir "equity" $ msum [
-           dir "accounts" $ nGET >> w getAllMembersEquityAccounts]
-      , dir "patronage" $ path $ \(fiscalPeriodStr::String) -> 
-          method GET >> w (getAllMemberPatronage fiscalPeriodStr)]
+          dir "accounts" $ 
+            nGET >> w getAllMembersEquityAccounts]
+      , dir "patronage" $ 
+          path $ \(fiscalPeriodStr::String) -> 
+              nGET >> w (getAllMemberPatronage fiscalPeriodStr)]
   , dir "member" $ msum [ 
-         nPOST >> w putMemberAndAccounts, method GET >> w getMember
+         nPOST >> w putMemberAndAccounts
+       , path $ \(mid::Integer) -> 
+           nGET >> w (getMember mid)
        , msum [ 
-            method POST >> w putMemberPatronage
-          , method POST >> w deleteMemberPatronage]
+           path $ \(idIn::Integer) -> 
+             dir "patronage" $ 
+               path $ \(performedOverStr::String) -> msum [
+                   nPOST >> w (putMemberPatronage idIn performedOverStr)
+                 , dir "delete" $ 
+                     nPOST >> w (deleteMemberPatronage idIn performedOverStr)]]
        , dir "equity" $ msum [
-           dir "disburse" $ nPOST >> w postScheduleAllocateDisbursal
-         , dir "history" $ nPOST >> w putEquityAction
+           dir "disburse" $ 
+             nPOST >> w postScheduleAllocateDisbursal
+         , dir "history" $ 
+             nPOST >> w putEquityAction
          , dir "account" $ msum [
                 nGET >> w getMemberEquityAccount
-              , dir "actions" $ nGET >> w getActionsForMemberEquityAcct] ] ]
+              , dir "actions" $ 
+                  nGET >> w getActionsForMemberEquityAcct] ] ]
   , dir "equity" $ msum [
        dir "members" $ msum [
          dir "allocate" $ msum [
-             dir "generate" $ nPOST >> w postAllocateToMembers
-           , dir "save" $ nPOST >> w postAllocationDisbursal] ] ]
+             dir "generate" $ 
+               nPOST >> w postAllocateToMembers
+           , dir "save" $ 
+               nPOST >> w postAllocationDisbursal] ] ]
   , dir "coop" $ msum [
-       nGET >> w getCooperative, nPOST >> w putCooperative
+       nGET >> w getCooperative 
+     , nPOST >> w putCooperative
      , dir "settings" $ msum [
           dir "allocate" $ msum [ 
                nPOST >> w putCoopAllocateSettings
-             , dir "method" $ nGET >> w getAllocMethodDetail
-             , dir "seniority" $ dir "levels" $ nGET >> w getSeniorityMappings] 
+             , dir "method" $ 
+                 nGET >> w getAllocMethodDetail
+             , dir "seniority" $ dir "levels" $ 
+                 nGET >> w getSeniorityMappings] 
         , dir "disburse" $ dir "schedule" $ dir "default" $ msum [
-                 nPOST >> w putDefaultDisbursalSchedule
-               , nGET >> w getDefaultDisbursalSchedule] ] ] 
-  , dir "fiscal" $ dir "periods" $ w getLatestFiscalPeriods
+               nPOST >> w putDefaultDisbursalSchedule
+             , nGET >> w getDefaultDisbursalSchedule] ] ] 
+  , dir "fiscal" $ dir "periods" $ 
+      nGET >> w getLatestFiscalPeriods
   , dir "allocate" $ msum [
-      dir "method" $ path $ (okJSResp . fieldDetails . read) --GET
-    , dir "methods" $ nGET >> (okJSResp $ fmap show allocMethods)]
-  , dir "export.zip" $ nGET >> w exportAll
-  , dir "logout" $ runReaderT expireSession ref
+      dir "method" $ path $ 
+        (okJSResp . fieldDetails . read) --GET
+    , dir "methods" $ 
+        nGET >> (okJSResp $ fmap show allocMethods)]
+  , dir "export.zip" $ 
+      nGET >> w exportAll
+  , dir "logout" $ 
+      runReaderT expireSession ref --POST
   , redirect loginUrl]
 
 g0 = Globals M.empty

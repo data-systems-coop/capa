@@ -9,8 +9,6 @@ import Domain
 import Serialize
 import Service.Base
 
-import Happstack.Lite (path) 
-
 import Service.Security
 
 putMemberAndAccounts :: 
@@ -23,11 +21,11 @@ putMemberAndAccounts = do
     mbrId <- mbrSave dbCn cpId mem
     acctSaveDefault dbCn cpId mbrId) >>= (lift . okJSResp)
      
-getMember :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-getMember = do
+getMember :: Integer -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getMember mid = do
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
-  lift $ path $ \(mid::Integer) -> do
+  lift $ do
     (liftIO $ mbrGet dbCn cpId mid) >>= okJSResp
 
 getMembers :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
