@@ -1,4 +1,4 @@
-{-# Language OverloadedStrings #-}
+{-# Language OverloadedStrings, ScopedTypeVariables #-}
 module Main (main) where
 
 import Types
@@ -123,7 +123,8 @@ capaApp ref connStr authControl resolveCoopWith hState =
         nGET >> w getMembers
       , dir "equity" $ msum [
            dir "accounts" $ nGET >> w getAllMembersEquityAccounts]
-      , dir "patronage" $ method GET >> w getAllMemberPatronage]
+      , dir "patronage" $ path $ \(fiscalPeriodStr::String) -> 
+          method GET >> w (getAllMemberPatronage fiscalPeriodStr)]
   , dir "member" $ msum [ 
          nPOST >> w putMemberAndAccounts, method GET >> w getMember
        , msum [ 

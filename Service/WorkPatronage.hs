@@ -56,11 +56,12 @@ deleteMemberPatronage = do
         (liftIO $ ptrngDelete dbCn cpId idIn performedOver) >>= okJSResp
 
 getAllMemberPatronage 
-  :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-getAllMemberPatronage = do 
+  :: String -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getAllMemberPatronage fiscalPeriodStr = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
-  lift $ path $ \(fiscalPeriodStr::String) -> do
+  lift $ -- path $ \(fiscalPeriodStr::String) -> 
+    do
     let Just fiscalPeriod = decode $ LB.pack fiscalPeriodStr
     mpAll <- 
       liftIO $ do
