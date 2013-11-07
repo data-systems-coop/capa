@@ -165,22 +165,22 @@ run :: IO ()
 run = do
   (configFile:_) <- getArgs
   prog <- getProgName
-  --read config
-  val <- CF.readfile CF.emptyCP configFile
-  let cp = forceEither val
-  let getConfig = forceEither . CF.get cp "DEFAULT" 
-  setupLogging prog (forceEither $ CF.get cp "DEFAULT" "rootloglevel")
+  cp <- fmap forceEither $ CF.readfile CF.emptyCP configFile
+  setupLogging prog $ getConfig cp "rootloglevel"
   infoM "main" "started"
-  let authUriBase = (getConfig "authuribase")::String
-  let servicesUri = (getConfig "servicesuri")::String
-  let connString = --build db string
+  let authUriBase = getConfig cp "authuribase"
+  let servicesUri = getConfig cp "servicesuri"::String
+  let connString = 
        printf "host=%s port=%d dbname=%s user=%s password=%s"
-         (getConfig "dbhost") ((forceEither $ CF.get cp "DEFAULT" "dbport")::Integer)
-         (getConfig "dbname") (getConfig "dbuser") (getConfig "dbpass")
-  let webPort = forceEither $ CF.get cp "DEFAULT" "webport"
-  socket <- openSocket webPort $ getConfig "webprocessuser"
-  x <- openLocalState g0   --restart cache
-  ehs <- initTemplateRepo $ getConfig "templatedir"
+         (getConfig cp "dbhost"::String)
+         (getConfig cp "dbport"::Integer)
+         (getConfig cp "dbname"::String)
+         (getConfig cp "dbuser"::String)
+         (getConfig cp "dbpass"::String)
+  let webPort = getConfig cp "webport"
+  socket <- openSocket webPort $ getConfig cp "webprocessuser"  
+  x <- openLocalState g0   --restart cache  
+  ehs <- initTemplateRepo $ getConfig cp "templatedir"
   either 
     (error . concat) --output init template errors
     (serve socket webPort . 
@@ -190,6 +190,9 @@ run = do
        (authenticatedForRegister authUriBase)
        (resolveCoop authUriBase x)) --provide auth handlers
     ehs 
+
+getConfig :: (CF.Get_C a) => CF.ConfigParser -> CF.OptionSpec -> a
+getConfig cp = forceEither . CF.get cp "DEFAULT"
 
 setupLogging :: String -> Priority -> IO ()
 setupLogging progName rootLogLevel = do 
