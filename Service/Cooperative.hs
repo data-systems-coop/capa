@@ -24,6 +24,5 @@ putCooperative = do
   coop <- liftIO $ do 
     cpId <- runReaderT (coopSave coop) dbCn
     runReaderT coopGet (dbCn, cpId)
-  ref <- asks fst
   withReaderT fst $ attachSession coop
   lift $ okJSResp ()

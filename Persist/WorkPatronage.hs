@@ -82,13 +82,6 @@ ptrngDelete dbCn cpId mbrId performedOver = do
      DB.SqlString $ show prdType]
   DB.commit dbCn  
 
-ptrngExportFor :: PG.Connection -> Integer -> String -> IO () 
-ptrngExportFor dbCn cpId file = 
-  void $ 
-    DB.run dbCn ("COPY (select * from Member m inner join WorkPatronage p using (cpId, mbrId) where cpId = " ++ (show cpId) ++ " order by mbrId, (performedOver).prdStart) TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []
-
-
-
 ptrngFromRow :: 
   FiscalPeriod -> [DB.SqlValue] -> Member -> SeniorityMappings -> WorkPatronage 
 ptrngFromRow 

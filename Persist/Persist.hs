@@ -96,11 +96,6 @@ allocStngSaveFor dbCn cpId allocMethod
      toSqlDouble qualityw, toSqlDouble revenueGeneratedw]
   DB.commit dbCn
 
-stngExportFor :: Connection -> Integer -> String -> IO () 
-stngExportFor dbCn cpId file = 
-  void $ --snrty levls eventually
-    DB.run dbCn ("COPY (select *, (select string_agg( (afterAllocation).years || 'yrs' || (afterAllocation).months || 'mos' || ' ' || proportion*100 || '%', ',') from DisbursalSchedule where cpId = " ++ (show cpId) ++ ") as disbursalScheduleList from Cooperative inner join CoopSettings using (cpId) where cpId = " ++ (show cpId) ++ ") TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []
-
 --SeniorityMappings
 snrtyMpngsSaveFor :: Connection -> Integer -> SeniorityMappings -> IO ()
 snrtyMpngsSaveFor dbCn cpId mpngs = do 

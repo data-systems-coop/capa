@@ -141,8 +141,3 @@ acnGetForDisbursal dbCn cpId resultOf performedOn = do
       fmap
         (\r -> 
           (mbrFromRow $ drop 4 r, acnFromDsb r))
-  
-acnExportFor :: Connection -> Integer -> String -> IO () 
-acnExportFor dbCn cpId file = 
-  void $ 
-    run dbCn ("COPY (select * from Member m inner join MemberEquityAccount a using (cpId, mbrId) inner join MemberEquityAction c using (cpId,mbrId,acctId) where cpId = " ++ (show cpId) ++ " order by mbrId, acctId, performedOn) TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []

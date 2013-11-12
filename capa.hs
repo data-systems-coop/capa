@@ -108,7 +108,6 @@ capaApp ref connStr authControl resolveCoopWith hState =
            , dir "register" $ authControl "/control/coop/register?username="]
        , dir "logout" $ 
            runReaderT expireSession ref >> redirect loginUrl
-       , dir "export" $ templateResponse "export"
        , redirect loginUrl]
   
   --service router
@@ -130,7 +129,7 @@ capaApp ref connStr authControl resolveCoopWith hState =
           path $ \(fiscalPeriodStr::String) -> 
               nGET >> w (getAllMemberPatronage fiscalPeriodStr)]
   , dir "member" $ msum [ 
-         nPOST >> w putMemberAndAccounts
+         nPOST >> w postMemberAndAccounts
        , path $ \(mid::Integer) -> 
            nGET >> w (getMember mid)
        , msum [ 
@@ -176,8 +175,6 @@ capaApp ref connStr authControl resolveCoopWith hState =
         (okJSResp . fieldDetails . read) --GET
     , dir "methods" $ 
         nGET >> (okJSResp $ fmap show allocMethods)]
-  , dir "export.zip" $ 
-      nGET >> w exportAll
   , dir "logout" $ 
       runReaderT expireSession ref --POST
   , redirect loginUrl]

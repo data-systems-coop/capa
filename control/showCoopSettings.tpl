@@ -111,11 +111,10 @@ function loadDisbursalSchedule(){
 </div>
 
 <div class="row">
-<div class="span7">
-<a href="/control/export">Go to export page</a>
+<div class="span7"> 
+Email support@camp.coop if you are leaving system 
+and would like an export of your data. 
 </div>
 </div>
-
-
 
 </apply>

@@ -11,17 +11,18 @@ import Service.Base
 
 import Service.Security
 
-putMemberAndAccounts :: 
+postMemberAndAccounts :: 
   ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-putMemberAndAccounts = do 
+postMemberAndAccounts = do 
   cpId <- withReaderT fst getSessionCoopId
-  mem <- lift $ parseObject 
   dbCn <- asks snd
+  mem <- lift $ parseObject 
   (liftIO $ do 
     mbrId <- mbrSave dbCn cpId mem
     acctSaveDefault dbCn cpId mbrId) >>= (lift . okJSResp)
      
-getMember :: Integer -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getMember :: 
+  Integer -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
 getMember mid = do
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd

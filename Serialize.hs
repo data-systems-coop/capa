@@ -129,9 +129,9 @@ instance FromJSON FiscalPeriod where
 instance FromJSON Day where
   parseJSON (Array a) = 
      fromGregorian 
-       <$> withNumber "inccorect num" (\(AN.I i) -> pure i) (a V.! 0)
-       <*> withNumber "inccorect num" (\(AN.I i) -> pure $ fromIntegral i) (a V.! 1)
-       <*> withNumber "inccorect num" (\(AN.I i) -> pure $ fromIntegral i) (a V.! 2)
+       <$> withNumber "incorrect num" (\(AN.I i) -> pure i) (a V.! 0)
+       <*> withNumber "incorrect num" (\(AN.I i) -> pure $ fromIntegral i) (a V.! 1)
+       <*> withNumber "incorrect num" (\(AN.I i) -> pure $ fromIntegral i) (a V.! 2)
 
 instance FromJSON SeniorityMappingEntry where
   parseJSON (Object v) = 

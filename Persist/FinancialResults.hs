@@ -75,8 +75,3 @@ rsltDelete dbCn cpId over = do
       \where (cpId, (rsltOver).prdStart, (rsltOver).prdType) = (?,?,?)"
       [DB.SqlInteger cpId, DB.SqlLocalDate prdStartDay, DB.SqlString $ show prdType]
   DB.commit dbCn  
-
-rsltExportFor :: PG.Connection -> Integer -> String -> IO () 
-rsltExportFor dbCn cpId file = 
-  void $ 
-    DB.run dbCn ("COPY (select * from FinancialResults  where cpId = " ++ (show cpId) ++ " order by (rsltOver).prdStart) TO '" ++ file ++ "' WITH (FORMAT csv, HEADER)") []

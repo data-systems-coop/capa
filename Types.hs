@@ -173,7 +173,7 @@ instance Default FiscalCalendarType where
   def = FiscalCalendarType{startf=1,periodTypef=def}
 
 instance Default Cooperative where
-  def = Cooperative{cooperativeId=1,name=def,username=def,usageStart=def,usageEnd=def,
+  def = Cooperative{cooperativeId=1,name=def,username=def,usageStart=def,usageEnd=Nothing,
                     fiscalCalendarType=def}
 
 
