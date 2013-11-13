@@ -11,6 +11,8 @@ import Service.Base
 
 import Service.Security
 
+import qualified Data.ByteString.Lazy.Char8 as B
+
 getAllFinancialResultsDetail 
   :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
 getAllFinancialResultsDetail = do 
@@ -18,24 +20,20 @@ getAllFinancialResultsDetail = do
   dbCn <- asks snd
   (liftIO $ rsltGetAll dbCn cpId) >>= (lift . okJSResp)
        
-putFinancialResults
+postFinancialResults
   :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-putFinancialResults = do 
+postFinancialResults = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd  
   lift $ do 
-    surplus <- lookRead "surplus"
-    overStr <- lookBS "over"
-    let Just over = decode overStr
-    let res = FinancialResults over surplus Nothing
+    res <- parseObject 
     (liftIO $ rsltSaveFor dbCn cpId res) >>= okJSResp
 
 deleteFinancialResults
-  :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-deleteFinancialResults = do 
+  :: String -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+deleteFinancialResults overStr = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd  
   lift $ do 
-    overStr <- lookBS "over"
-    let Just over = decode overStr
+    let Just over = decode $ B.pack overStr --skip packing
     (liftIO $ rsltDelete dbCn cpId over) >>= okJSResp

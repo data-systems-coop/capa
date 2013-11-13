@@ -17,9 +17,9 @@ function loadAllFinancialResults(){
    })
 }
 function removeFinancialResults(r){
-  $.post("/financial/results/delete",{over:JSON.stringify(r.over)}, function(){
-    loadAllFinancialResults()
-  })
+  $.ajax(sprintf("/financial/results/%s",JSON.stringify(r.over)),
+        {type: "DELETE",
+         complete: loadAllFinancialResults})
 }
 function appendFinancialResults(res){
   var alloc = 

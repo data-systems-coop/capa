@@ -24,6 +24,7 @@ getLatestFiscalPeriods = do
     Cooperative{fiscalCalendarType=ft} <- liftIO $ runReaderT coopGet (dbCn, cpId)
     let FiscalCalendarType{startf=startMonth, periodTypef=pt} = ft
     today <- liftIO getCurrentDay
+    -- move below into Domain
     let (endYear,_,_) = toGregorian $ addGregorianYearsClip 5 today
     let end = fromGregorian endYear startMonth 1
     let stepBack = 

@@ -41,7 +41,7 @@ function setupForm(){
   $("a:contains('Cancel')").attr("href",returnTo)
 }
 </script>
-<form method="POST" action="/member/equity/history"> 
+<form method="POST" action="/member/equity/account/actions"> 
 <p id="memberName"></p><input type="hidden" name="mbrId">
 <p id="accountName"></p><input type="hidden" name="acctId">
 <label for="actionType">Action Type</label>

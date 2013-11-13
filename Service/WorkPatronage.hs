@@ -30,39 +30,38 @@ lookPatronage method performedOver =
       return def{work=work,skillWeightedWork=skillWeightedWork,
                  performedOver=performedOver}
 
-putMemberPatronage 
-  :: Integer -> String -> 
+postMemberPatronage 
+  :: Integer -> FiscalPeriod -> 
        ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-putMemberPatronage idIn performedOverStr = do 
+postMemberPatronage mbrId performedOver = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
-    let Just performedOver = decode $ LB.pack performedOverStr        
     (allocMethod, _) <- liftIO $ allocStngGet dbCn cpId
     lookPatronage allocMethod performedOver >>= 
-      (liftIO . ptrngSaveFor dbCn cpId idIn) >>= okJSResp
+      (liftIO . ptrngSaveFor dbCn cpId mbrId) >>= okJSResp
 
 deleteMemberPatronage 
-  :: Integer -> String -> 
+  :: Integer -> FiscalPeriod -> 
        ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-deleteMemberPatronage idIn performedOverStr = do 
+deleteMemberPatronage mbrId performedOver = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
-    let Just performedOver = decode $ LB.pack performedOverStr        
-    (liftIO $ ptrngDelete dbCn cpId idIn performedOver) >>= okJSResp
+    (liftIO $ ptrngDelete dbCn cpId mbrId performedOver) >>= okJSResp
 
 getAllMemberPatronage 
-  :: String -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-getAllMemberPatronage fiscalPeriodStr = do 
+  :: FiscalPeriod -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getAllMemberPatronage performedOver = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do
-    let Just fiscalPeriod = decode $ LB.pack fiscalPeriodStr
     mpAll <- 
       liftIO $ do
         mpngs <- snrtyMpngsGet dbCn cpId
-        ptrngGetFor dbCn cpId fiscalPeriod mpngs
+        ptrngGetFor dbCn cpId performedOver mpngs
     let (mp, mu) = M.partition isJust mpAll
     okJSResp $ (mp, M.keys mu)
-    
+
+decodePeriod :: String -> FiscalPeriod  --turn this into fromrequri instance
+decodePeriod = fromJust . decode . LB.pack 

@@ -167,14 +167,14 @@ instance Default Member where
   def = Member{firstName=def,lastName=def,memberId=1,acceptedOn=def}
   
 instance Default FinancialResults where
-  def = FinancialResults{over=def,surplus=def,allocatedOn=def}
+  def = FinancialResults{over=def,surplus=def,allocatedOn=Nothing}
   
 instance Default FiscalCalendarType where
   def = FiscalCalendarType{startf=1,periodTypef=def}
 
 instance Default Cooperative where
-  def = Cooperative{cooperativeId=1,name=def,username=def,usageStart=def,usageEnd=Nothing,
-                    fiscalCalendarType=def}
+  def = Cooperative{cooperativeId=1,name=def,username=def,usageStart=def,
+                    usageEnd=Nothing,fiscalCalendarType=def}
 
 
 -- sample data

@@ -15,7 +15,7 @@ import Data.Time (Day, fromGregorian , toGregorian, UTCTime(..), getCurrentTime)
 import qualified Data.Text as DT  
 import qualified Data.Map as M
 import Happstack.Lite(ServerPart)
-import Happstack.Server(look)
+import Happstack.Server(look, lookBS, ServerPartT)
 import Control.Monad.IO.Class (liftIO)  
 
 instance ToJSON Cooperative where   
@@ -168,4 +168,22 @@ instance FromParams Cooperative where --new coop
     return $ 
       Cooperative cpId name username usageStart Nothing 
         (FiscalCalendarType clTpStart clTpPeriodType)
-    
+
+instance FromParams MemberEquityAction where --new action
+  parseObject = do
+    actionType <- lookRead "actionType"
+    amount <- lookRead "amount"
+    performedOnStr <- look "performedOn"
+    let Just performedOn = parseJSDate performedOnStr
+    return $ 
+      MemberEquityAction{actionType=actionType,amount=amount,performedOn=performedOn}
+
+instance FromParams FinancialResults where --new res
+  parseObject = do
+    surplus <- lookRead "surplus"
+    over <- lookDecode "over"
+    return $ FinancialResults over surplus Nothing
+
+
+lookDecode :: (FromJSON a) => String -> ServerPartT IO a
+lookDecode = fmap (fromJust . decode) . lookBS

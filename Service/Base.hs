@@ -9,8 +9,7 @@ module Service.Base(
 
 import Control.Monad.IO.Class (liftIO)  
 import Control.Monad.Reader
-import Happstack.Server(ServerPartT, Response(..), ok, toResponseBS, look, lookBS
-                       ) 
+import Happstack.Server(ServerPartT, Response(..), ok, toResponseBS, look, lookBS) 
 import Database.HDBC.PostgreSQL(Connection)
 import Control.Monad(guard, void)
 import Data.Aeson (encode, decode)

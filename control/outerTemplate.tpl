@@ -150,6 +150,9 @@ function disableNavigation(){
   $("ul li").removeClass("active")
   $("ul li").addClass("disabled")
 }
+function logout(){
+  $.post("/logout", function(){redirect("/")})
+}
 </script>
 
 <div class="container">
@@ -159,7 +162,7 @@ function disableNavigation(){
 <li><a href="/control/members/patronage/period">Patronage</a></li>
 <li><a href="/control/financial/results">Financial Results</a></li>
 <li><a href="/control/coop/settings/show">Settings</a></li>
-<li><a href="/control/logout">Logout</a></li>
+<li><a href="#" onclick='logout();'>Logout</a></li>
 </ul>
 
 

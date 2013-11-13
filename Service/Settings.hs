@@ -24,14 +24,12 @@ getCoopRegistrationState = do
   dbCn <- asks snd
   liftIO $ coopRegisterState dbCn cpId 
 
-putDefaultDisbursalSchedule :: 
+postDefaultDisbursalSchedule :: 
   ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-putDefaultDisbursalSchedule = do 
+postDefaultDisbursalSchedule = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
-  defaultDisbSchedStr <- lift $ lookBS "disbursalSchedule"
-  let Just defaultDisbSched = 
-        (decode defaultDisbSchedStr)::Maybe DisbursalSchedule
+  defaultDisbSched <- lift $ lookDecode "disbursalSchedule"
   (liftIO $ dsbSchedSaveFor dbCn cpId defaultDisbSched) >>= (lift . okJSResp)
 
 getDefaultDisbursalSchedule :: 
@@ -48,9 +46,9 @@ getSeniorityMappings = do
   dbCn <- asks snd
   (liftIO $ snrtyMpngsGet dbCn cpId) >>= (lift . okJSResp)
 
-putCoopAllocateSettings :: 
+postCoopAllocateSettings :: 
   ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-putCoopAllocateSettings = do 
+postCoopAllocateSettings = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
@@ -73,10 +71,10 @@ saveCoopAllocateSettings ::
     -> IO ()
 saveCoopAllocateSettings dbCn cpId method patronageWeights seniorityMappings 
   | (method == ProductiveHours || method == Wages || method == SimpleMix) = 
-    allocStngSaveFor dbCn cpId method patronageWeights
+      allocStngSaveFor dbCn cpId method patronageWeights
   | otherwise = do  
-    allocStngSaveFor dbCn cpId method patronageWeights
-    snrtyMpngsSaveFor dbCn cpId $ fromJust seniorityMappings
+      allocStngSaveFor dbCn cpId method patronageWeights
+      snrtyMpngsSaveFor dbCn cpId $ fromJust seniorityMappings
     
 
 lookSeniorityMappings :: 
@@ -85,9 +83,7 @@ lookSeniorityMappings method
   | (method == ProductiveHours || method == Wages || method == SimpleMix) = 
       return Nothing
   | otherwise = do 
-      snrtyLvlsStr <- lookBS "seniorityLevels"
-      let Just snrtyLvls = 
-            (decode snrtyLvlsStr)::Maybe [(SeniorityMappingEntry,SeniorityLevel)]
+      snrtyLvls <- lookDecode "seniorityLevels"
       return $ Just $ M.fromList $ snrtyLvls
       
 allocMethods :: [AllocationMethod]

@@ -2,7 +2,8 @@ module Utils (
   module Utils,
   module System.Log.Logger,
   printf,
-  module Data.Maybe
+  module Data.Maybe, 
+  module Control.Applicative
 ) where
 
 import Happstack.Lite(ServerPart, ToMessage(..), lookText, Response(..), ok, seeOther)
@@ -15,6 +16,7 @@ import qualified Happstack.Server as HS
 import System.Log.Logger
 import Text.Printf(printf)
 import Data.Maybe
+import Control.Applicative
 
 lookRead :: Read a => String -> ServerPart a
 lookRead = fmap read . HS.look 

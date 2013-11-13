@@ -17,8 +17,8 @@ getCooperative = do
   c <- liftIO $ runReaderT coopGet (dbCn, cpId)
   lift $ okJSResp c
 
-putCooperative :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-putCooperative = do
+postCooperative :: ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+postCooperative = do
   coop <- lift $ parseObject  
   dbCn <- asks snd
   coop <- liftIO $ do 

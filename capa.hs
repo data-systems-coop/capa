@@ -44,6 +44,9 @@ nGET = nullDir >> method GET
 
 nPOST :: ServerPart ()
 nPOST = nullDir >> method POST
+
+nDELETE :: ServerPart ()
+nDELETE = nullDir >> method DELETE
   
 -- Main.hs
 capaApp :: 
@@ -106,77 +109,81 @@ capaApp ref connStr authControl resolveCoopWith hState =
        , dir "login" $ msum [
              dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl
            , dir "register" $ authControl "/control/coop/register?username="]
-       , dir "logout" $ 
-           runReaderT expireSession ref >> redirect loginUrl
        , redirect loginUrl]
   
   --service router
   , dir "financial" $ dir "results" $ msum [   -- change to api/  
        nGET >> w getAllFinancialResultsDetail, 
-       nPOST >> w putFinancialResults, 
-       dir "delete" $ 
-         nPOST >> w deleteFinancialResults]
+       nPOST >> w postFinancialResults, 
+       path $ \(overStr::String) -> 
+         nDELETE >> w (deleteFinancialResults overStr)]
   , dir "allocation" $ msum [
-         nGET >> w getAllocation
+         lookDecode "resultOf" >>= \resultOf -> 
+           nGET >> w (getAllocation resultOf)
        , dir "disburse" $ dir "actions" $ 
-           nGET >> w getAllocationDisbursals]
+           lookDecode "resultOf" >>= \resultOf -> 
+             nGET >> w (getAllocationDisbursals resultOf)]
   , dir "members" $ msum [
         nGET >> w getMembers
       , dir "equity" $ msum [
           dir "accounts" $ 
             nGET >> w getAllMembersEquityAccounts]
       , dir "patronage" $ 
-          path $ \(fiscalPeriodStr::String) -> 
-              nGET >> w (getAllMemberPatronage fiscalPeriodStr)]
+          path $ \(performedOverStr::String) -> 
+            let performedOver = decodePeriod performedOverStr
+            in nGET >> w (getAllMemberPatronage performedOver)]
   , dir "member" $ msum [ 
          nPOST >> w postMemberAndAccounts
-       , path $ \(mid::Integer) -> 
-           nGET >> w (getMember mid)
-       , msum [ 
-           path $ \(idIn::Integer) -> 
-             dir "patronage" $ 
-               path $ \(performedOverStr::String) -> msum [
-                   nPOST >> w (putMemberPatronage idIn performedOverStr)
-                 , dir "delete" $ 
-                     nPOST >> w (deleteMemberPatronage idIn performedOverStr)]]
+       , path $ \(mbrId::Integer) -> msum [
+             nGET >> w (getMember mbrId)
+           , dir "patronage" $ 
+               path $ \(performedOverStr::String) -> 
+                 let performedOver = decodePeriod performedOverStr in msum [
+                    nPOST >> w (postMemberPatronage mbrId performedOver)
+                  , nDELETE >> w (deleteMemberPatronage mbrId performedOver)] ]
        , dir "equity" $ msum [
            dir "disburse" $ 
              nPOST >> w postScheduleAllocateDisbursal
-         , dir "history" $ 
-             nPOST >> w putEquityAction
-         , dir "account" $ msum [
-                nGET >> w getMemberEquityAccount
-              , dir "actions" $ 
-                  nGET >> w getActionsForMemberEquityAcct] ] ]
+         , dir "account" $ 
+             do mbrId <- lookRead "mbrId" 
+                acctId <- lookRead "acctId" 
+                msum [ 
+                     nGET >> w (getMemberEquityAccount mbrId acctId)
+                   , dir "actions" $ msum [ 
+                         nGET >> w (getActionsForMemberEquityAcct mbrId acctId)
+                       , nPOST >> w (postEquityAction mbrId acctId)] ] ] ]
   , dir "equity" $ msum [
        dir "members" $ msum [
-         dir "allocate" $ msum [
-             dir "generate" $ 
-               nPOST >> w postAllocateToMembers
-           , dir "save" $ 
-               nPOST >> w postAllocationDisbursal] ] ]
+         dir "allocate" $ 
+           do over <- lookDecode "over" 
+              msum [
+                 dir "generate" $ 
+                   nPOST >> w (postAllocateToMembers over)
+               , dir "save" $ 
+                   nPOST >> w (postAllocationDisbursal over)] ] ]
   , dir "coop" $ msum [
        nGET >> w getCooperative 
-     , nPOST >> w putCooperative
+     , nPOST >> w postCooperative
      , dir "settings" $ msum [
           dir "allocate" $ msum [ 
-               nPOST >> w putCoopAllocateSettings
+               nPOST >> w postCoopAllocateSettings
              , dir "method" $ 
                  nGET >> w getAllocMethodDetail
              , dir "seniority" $ dir "levels" $ 
                  nGET >> w getSeniorityMappings] 
         , dir "disburse" $ dir "schedule" $ dir "default" $ msum [
-               nPOST >> w putDefaultDisbursalSchedule
+               nPOST >> w postDefaultDisbursalSchedule
              , nGET >> w getDefaultDisbursalSchedule] ] ] 
   , dir "fiscal" $ dir "periods" $ 
       nGET >> w getLatestFiscalPeriods
   , dir "allocate" $ msum [
-      dir "method" $ path $ 
-        (okJSResp . fieldDetails . read) --GET
+      dir "method" $ 
+        path $ \(allocMethod::String) -> 
+          nGET >> (okJSResp $ fieldDetails $ read allocMethod)
     , dir "methods" $ 
         nGET >> (okJSResp $ fmap show allocMethods)]
   , dir "logout" $ 
-      runReaderT expireSession ref --POST
+      nPOST >> runReaderT expireSession ref
   , redirect loginUrl]
 
 g0 = Globals M.empty

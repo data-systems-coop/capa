@@ -11,13 +11,12 @@ import Service.Base
 import Service.Security
 
 getActionsForMemberEquityAcct ::
-  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-getActionsForMemberEquityAcct = do 
+  Integer -> Integer -> 
+    ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getActionsForMemberEquityAcct mbrId acctId = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
-    mbrId <- lookRead "mbrId"
-    acctId <- lookRead "acctId"
     all <- liftIO $ acnGetFor dbCn cpId mbrId acctId
     let (acns,rstOfs) = unzip all
     let acnBals = runningBalance acns
@@ -32,29 +31,21 @@ getAllMembersEquityAccounts = do
   (liftIO $ acctGetAll dbCn cpId) >>= (lift . okJSResp)
 
 getMemberEquityAccount :: 
-  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-getMemberEquityAccount = do
+  Integer -> Integer -> 
+    ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getMemberEquityAccount mbrId acctId = do
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
-  mbrId <- lift $ lookRead "mbrId"
-  acctId <- lift $ lookRead "acctId"
   (liftIO $ acctGet dbCn cpId mbrId acctId) >>= (lift . okJSResp)
 
-putEquityAction :: 
-  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-putEquityAction = do
+postEquityAction :: 
+  Integer -> Integer -> 
+    ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+postEquityAction mbrId acctId = do
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
-    mbrId <- lookRead "mbrId"
-    acctId <- lookRead "acctId"
-    actionType <- lookRead "actionType"
-    amount <- lookRead "amount"
-    performedOnStr <- look "performedOn"
-    let Just performedOn = parseJSDate performedOnStr
-    overStr <- lookBS "resultOf"
-    let overVal = decode overStr
-    let acn = MemberEquityAction{actionType=actionType,amount=amount,
-                                 performedOn=performedOn}
+    overVal <- lookDecode "resultOf"
+    acn <- parseObject
     (liftIO $ acnSaveFor dbCn cpId mbrId acctId overVal acn) >>= okJSResp
  

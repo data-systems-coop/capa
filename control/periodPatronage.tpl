@@ -58,10 +58,11 @@ function appendPatronage(memberPatronage, fieldInfo){
 function removePatronage(mp){
   var member = mp[0]
   var patronage = mp[1]
-  $.post(sprintf('/member/%s/patronage/%s/delete', 
+  $.ajax(sprintf('/member/%s/patronage/%s', 
                  member.memberId, 
                  encodeURI(JSON.stringify(patronage.performedOver))),
-         function(){ $("[name='period']").change() })
+         {type:"DELETE", 
+          complete: function(){ $("[name='period']").change() }})
 }
 </script>
 <table class="table">

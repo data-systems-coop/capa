@@ -15,9 +15,9 @@ import Service.Security
 import Control.Monad.Reader
 
 postAllocateToMembers :: 
-  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-postAllocateToMembers = 
-  handleAllocateToMembers >>= lift . okJSResp . snd
+  FiscalPeriod -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+postAllocateToMembers allocateOver = 
+  handleAllocateToMembers allocateOver >>= lift . okJSResp
 
 postScheduleAllocateDisbursal :: 
   ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
@@ -25,20 +25,19 @@ postScheduleAllocateDisbursal = do
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
-    allocateActionStr <- lookBS "allocateAction"
-    let Just allocateAction = decode allocateActionStr
+    allocateAction <- lookDecode "allocateAction"
     disbursalSchedule <- liftIO $ dsbSchedGet dbCn cpId
     okJSResp $ scheduleDisbursalsFor allocateAction $ disbursalSchedule
 
 handleAllocateToMembers ::
-  ReaderT (PersistConnection, Connection) 
-          (ServerPartT IO) (FiscalPeriod, (M.Map Member (MemberEquityAction, Rational)))
-handleAllocateToMembers = do 
+  FiscalPeriod -> 
+    ReaderT (PersistConnection, Connection) 
+            (ServerPartT IO) 
+            (M.Map Member (MemberEquityAction, Rational))
+handleAllocateToMembers allocateOver = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
-    overStr <- lookBS "over"
-    let Just allocateOver = decode overStr
     liftIO $ do 
       today <- getCurrentDay
       Just res <- rsltGetForOver dbCn cpId allocateOver
@@ -49,16 +48,15 @@ handleAllocateToMembers = do
             runReader 
               (allocateEquityFor res today (parameters, (M.map fromJust patronage))) 
               mpngs
-      return $
-        (allocateOver, acts)
+      return acts
 
 
 postAllocationDisbursal :: 
-  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-postAllocationDisbursal = do 
+  FiscalPeriod -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+postAllocationDisbursal allocateOver = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
-  (allocateOver, me) <- handleAllocateToMembers
+  me <- handleAllocateToMembers allocateOver
   lift $ do 
      (liftIO $ do 
        infoM "Service.postAllocationDisbursal" $ 
@@ -75,22 +73,20 @@ postAllocationDisbursal = do
          (scheduleDisbursals today disbursalSchedule)
        ) >>= okJSResp
         
-getAllocation ::
-  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-getAllocation = do 
+getAllocation :: 
+  FiscalPeriod -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getAllocation resultOf = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
-  Just resultOf <- lift $ readPeriod "resultOf"
   (liftIO $ allocGet dbCn cpId resultOf) >>= (lift . okJSResp)
     
 --get allocation actions
 
-getAllocationDisbursals ::
-  ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
-getAllocationDisbursals = do 
+getAllocationDisbursals :: 
+  FiscalPeriod -> ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
+getAllocationDisbursals resultOf = do 
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
-  Just resultOf <- lift $ readPeriod "resultOf"
   (liftIO $ 
     disbursalGetFor dbCn cpId resultOf >>= 
     mapM 
@@ -107,5 +103,3 @@ postRescheduleDisbursal ref dbCn = do cpId <- getSessionCoopId ref
   -- read (identifying allocdate, dsbdate from, dsbdate to, proportion)
 --}
 
-readPeriod::String -> ServerPartT IO (Maybe FiscalPeriod)
-readPeriod = fmap decode . lookBS
