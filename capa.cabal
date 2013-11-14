@@ -13,4 +13,4 @@ executable capa
                         hslogger, zip-archive, unix, process, data-default, network,
                         HTTP
   hs-source-dirs:	.
-  main-is:		capa.hs
+  main-is:		Main.hs

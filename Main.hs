@@ -22,7 +22,6 @@ import System.Log.Logger(traplogging, Priority)
 
 g0 = Globals M.empty
 
--- Main.hs
 run :: IO ()  
 run = do
   ((configFile:_), prog) <- (,) <$> getArgs <*> getProgName
@@ -33,10 +32,8 @@ run = do
   let servicesUri = getConfig cp "servicesuri"::String
   let connString = 
        printf "host=%s port=%d dbname=%s user=%s password=%s"
-         (getConfig cp "dbhost"::String)
-         (getConfig cp "dbport"::Integer)
-         (getConfig cp "dbname"::String)
-         (getConfig cp "dbuser"::String)
+         (getConfig cp "dbhost"::String) (getConfig cp "dbport"::Integer)
+         (getConfig cp "dbname"::String) (getConfig cp "dbuser"::String)
          (getConfig cp "dbpass"::String)
   let webPort = getConfig cp "webport"
   socket <- openSocket webPort $ getConfig cp "webprocessuser"  
