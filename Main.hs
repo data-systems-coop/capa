@@ -27,18 +27,18 @@ run = do
   ((configFile:_), prog) <- (,) <$> getArgs <*> getProgName
   cp <- fmap forceEither $ CF.readfile CF.emptyCP configFile
   setupLogging prog $ getConfig cp "rootloglevel"
-  infoM "main" "started"
-  let authUriBase = getConfig cp "authuribase"
-  let servicesUri = getConfig cp "servicesuri"::String
-  let connString = 
-       printf "host=%s port=%d dbname=%s user=%s password=%s"
-         (getConfig cp "dbhost"::String) (getConfig cp "dbport"::Integer)
-         (getConfig cp "dbname"::String) (getConfig cp "dbuser"::String)
-         (getConfig cp "dbpass"::String)
-  let webPort = getConfig cp "webport"
-  socket <- openSocket webPort $ getConfig cp "webprocessuser"  
-  cache <- openLocalStateFrom "state" g0   --restart cache (add dir param)
-  tmpltRepo <- fmap forceEither $ initTemplateRepo $ getConfig cp "templatedir"
+  let (authUriBase, servicesUri, connString, webPort) = 
+        (getCfgString cp "authuribase", 
+         getCfgString cp "servicesuri", 
+         printf "host=%s port=%d dbname=%s user=%s password=%s"
+           (getCfgString cp "dbhost") (getConfig cp "dbport"::Integer)
+           (getCfgString cp "dbname") (getCfgString cp "dbuser")
+           (getCfgString cp "dbpass"),
+         getConfig cp "webport")
+  (socket, cache, tmpltRepo) <- 
+    (,,) <$> (openSocket webPort $ getConfig cp "webprocessuser")
+      <*> (openLocalStateFrom "state" g0)   --restart cache (add dir param)
+      <*> (fmap forceEither $ initTemplateRepo $ getConfig cp "templatedir")
   serve socket webPort $ 
      capaApp 
        cache 
@@ -47,6 +47,9 @@ run = do
        (resolveCoop authUriBase cache)  --provide auth handlers
        tmpltRepo
 
+getCfgString :: CF.ConfigParser -> CF.OptionSpec -> String
+getCfgString = getConfig
+
 getConfig :: (CF.Get_C a) => CF.ConfigParser -> CF.OptionSpec -> a
 getConfig cp = forceEither . CF.get cp "DEFAULT"
 
@@ -54,6 +57,7 @@ setupLogging :: String -> Priority -> IO ()
 setupLogging progName rootLogLevel = do 
   s <- SYS.openlog progName [] SYS.USER DEBUG  
   updateGlobalLogger rootLoggerName (addHandler s . setLevel rootLogLevel)
+  infoM "Main.setupLogging" "started"
 
 main :: IO ()
-main = traplogging "main" ERROR "Server quit due to" run 
+main = traplogging "Main.main" ERROR "Server quit due to" run 

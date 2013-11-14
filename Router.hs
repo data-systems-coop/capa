@@ -52,7 +52,7 @@ capaApp ref connStr authControl resolveCoopWith hState =
          "/control/coop/register/partial?alloc=%s&disburse=%s" 
          (templateFor hState) ref
      unsecuredTemplateResponse nm = withCn $ templateResponseWithState False False nm
-     templateResponse nm = withCn $ templateResponseWithState True True nm
+     t nm = withCn $ templateResponseWithState True True nm
      noPartialTemplateResponse nm = withCn $ templateResponseWithState True False nm
      w handler = do 
        cn <- liftIO $ PG.connectPostgreSQL connStr
@@ -69,7 +69,7 @@ capaApp ref connStr authControl resolveCoopWith hState =
   --view router
   , dir "control" $ msum [ --remove control 
          dir "coop" $ msum [
-            dir "summary" $ templateResponse "coopSummary"
+            dir "summary" $ t "coopSummary"
           , dir "register" $ msum [
                 unsecuredTemplateResponse "registerCoop"
               , dir "partial" $ noPartialTemplateResponse "partialRegistration"
@@ -78,22 +78,19 @@ capaApp ref connStr authControl resolveCoopWith hState =
               noPartialTemplateResponse "coopSettings"
             , dir "disburse" $ dir "schedule" $ 
                   noPartialTemplateResponse "setDefaultDisbursalSchedule"
-            , dir "show" $ templateResponse "showCoopSettings"] ]
+            , dir "show" $ t "showCoopSettings"] ]
        , dir "member" $ msum [
-            dir "account" $ dir "action" $ dir "add" $ 
-              templateResponse "addAction"
-          , dir "patronage" $ dir "record" $ 
-              templateResponse "recordPatronage"]
+            dir "account" $ dir "action" $ dir "add" $ t "addAction"
+          , dir "patronage" $ dir "record" $ t "recordPatronage"]
        , dir "members" $ msum [
-             dir "accounts" $ templateResponse "memberAccounts"
-           , dir "patronage" $ dir "period" $ templateResponse "periodPatronage"
-           , dir "add" $ templateResponse "newMember"]
+             dir "accounts" $ t "memberAccounts"
+           , dir "patronage" $ dir "period" $ t "periodPatronage"
+           , dir "add" $ t "newMember"]
        , dir "financial" $ dir "results" $ msum [
-             templateResponse "financialResults"
-           , dir "record" $ templateResponse "recordResult"]
+             t "financialResults"
+           , dir "record" $ t "recordResult"]
        , dirs "equity" $ msum [ 
-            dir "members"  $ dir "allocationsDisbursals" $ 
-              templateResponse "allocationsDisbursals"] 
+            dir "members"  $ dir "allocationsDisbursals" $ t "allocationsDisbursals"] 
        , dir "enter" $ unsecuredTemplateResponse "enter" 
        , dir "login" $ msum [
              dir "resolve" $ dir "coop" $ method POST >> resolveCoopCtrl
