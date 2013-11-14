@@ -7,18 +7,20 @@
 function setupForm(){
   var memAcctMap = new Object()
   $("[name='member']").change(function(){
-    var sel = $("[name='member']").val()
-    var accts = memAcctMap[sel]
-    var rollingAcct = 
-      accts.filter(function(a){return a.accountType == 'RollingPatronageAcct'})[0]
-    var buyinAcct = 
-      accts.filter(function(a){return a.accountType == 'BuyInAcct'})[0]
-    reloadActions(
-      $("[name='member']").val(), rollingAcct.ida, "#rollingResult",
-      "#rollingAdd")
-    reloadActions(
-      $("[name='member']").val(), buyinAcct.ida, "#buyinResult",
-      "#buyinAdd")
+    if( !$.isEmptyObject(memAcctMap) ){ 
+      var sel = $("[name='member']").val()
+      var accts = memAcctMap[sel]
+      var rollingAcct = 
+        accts.filter(function(a){return a.accountType == 'RollingPatronageAcct'})[0]
+      var buyinAcct = 
+        accts.filter(function(a){return a.accountType == 'BuyInAcct'})[0]
+      reloadActions(
+        $("[name='member']").val(), rollingAcct.ida, "#rollingResult",
+        "#rollingAdd")
+      reloadActions(
+        $("[name='member']").val(), buyinAcct.ida, "#buyinResult",
+        "#buyinAdd")
+    }
   })
 
   $.getJSON("/members/equity/accounts", function(memAccts){
