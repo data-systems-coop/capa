@@ -108,10 +108,7 @@ instance (ToJSON a, ToJSON b) => ToJSON (M.Map a b) where
 
 instance FromJSON MemberEquityAction where
   parseJSON (Object v) = 
-    MemberEquityAction <$> 
-      v .: "actionType" <*> 
-      v .: "amount" <*> 
-      v .: "performedOn"
+    MemberEquityAction <$> v .: "actionType" <*> v .: "amount" <*> v .: "performedOn"
   
 instance FromJSON EquityActionType where
   parseJSON (String t) = pure $ read $ DT.unpack t

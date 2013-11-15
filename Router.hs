@@ -3,7 +3,6 @@ module Router where
 
 import Types
 import Utils
-import Domain
 import Serialize
 import Persist.Persist
 import Service.Service

@@ -37,14 +37,14 @@ run = do
          getConfig cp "webport")
   (socket, cache, tmpltRepo) <- 
     (,,) <$> (openSocket webPort $ getConfig cp "webprocessuser")
-      <*> (openLocalStateFrom "state" g0)   --restart cache (add dir param)
+      <*> (openLocalStateFrom "state" g0)   --(add dir param)
       <*> (fmap forceEither $ initTemplateRepo $ getConfig cp "templatedir")
   serve socket webPort $ 
      capaApp 
        cache 
        connString
-       (authenticatedForRegister authUriBase)
-       (resolveCoop authUriBase cache)  --provide auth handlers
+       (authenticatedForRegister authUriBase) --provide auth handlers
+       (resolveCoop authUriBase cache)  
        tmpltRepo
 
 getCfgString :: CF.ConfigParser -> CF.OptionSpec -> String
