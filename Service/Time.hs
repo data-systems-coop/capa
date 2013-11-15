@@ -10,8 +10,6 @@ import Service.Base
 
 import Service.Security
 
--- for provided day, provide 2 years back and forward
--- should take offset back or forward
 getLatestFiscalPeriods :: 
   ReaderT (PersistConnection, Connection) (ServerPartT IO) Response
 getLatestFiscalPeriods = do
