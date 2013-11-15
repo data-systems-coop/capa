@@ -39,11 +39,6 @@ okJSResp = ok . toResponse . JSONData
 getCurrentDay :: IO DT.Day
 getCurrentDay = fmap DT.utctDay DT.getCurrentTime
 
---start from current day
---  find closest quarter or year start prior to today
---  compute 2 years forward and back. 
---  enun starting from 2 years back
---  reverse
-
 redirect :: String -> ServerPartR
 redirect url = seeOther url $ toResponse ()
+

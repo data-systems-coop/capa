@@ -45,7 +45,7 @@ postEquityAction mbrId acctId = do
   cpId <- withReaderT fst getSessionCoopId
   dbCn <- asks snd
   lift $ do 
-    overVal <- lookDecode "resultOf"
+    overVal <- fmap decode $ lookBS "resultOf"
     acn <- parseObject
     (liftIO $ acnSaveFor dbCn cpId mbrId acctId overVal acn) >>= okJSResp
  

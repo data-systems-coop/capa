@@ -23,7 +23,7 @@ data GregorianMonth = GregorianMonth Year Month
            
 toDay (GregorianMonth yr mo) = fromGregorian yr mo 1
   
-data PeriodType = Year | Quarter
+data PeriodType = Year | Quarter | Month
   deriving (Show, Read, Eq, Ord, Data, Typeable)
 
 type Year = Integer

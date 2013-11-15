@@ -14,9 +14,10 @@ function setupView(){
 function loadCoop(){
   $.getJSON("/coop", function(c){
     $("#name").append(c.name)
-    $("#username").append(sprintf("<a href='%s' target='_blank'>%s</a>", c.username, c.username))
+    $("#username").append(
+       sprintf("<a href='%s' target='_blank'>%s</a>", c.username, c.username))
     $("#fiscalCalendarType").append(
-       sprintf("%s starting on month %s", 
+       sprintf("%sly starting on month %s", 
        		c.fiscalCalendarType.periodType, c.fiscalCalendarType.start))
   })
 }

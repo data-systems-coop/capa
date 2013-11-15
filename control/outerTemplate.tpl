@@ -33,9 +33,10 @@ function datePickerDflt(id){
   $(id).mask("00/00/0000")
 }
 function formatFiscalPeriod(per){
- return ( per.periodType == "Year" ) ? 
-   sprintf("FY %s", per.start.year) :
-   sprintf("FQ %s/%s", per.start.month, per.start.year)
+ return ( per.periodType == "Year" ) ? sprintf("FY %s", per.start.year) : 
+        ( per.periodType == "Quarter" ) ? 
+           sprintf("FQ %s/%s", per.start.month, per.start.year) : 
+         sprintf("FM %s/%s", per.start.month, per.start.year)
 }
 function formatGregorianDay(day){
  return sprintf('%s/%s/%s', day[1], day[2], day[0])

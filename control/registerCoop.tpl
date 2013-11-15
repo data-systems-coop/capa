@@ -10,7 +10,7 @@ $(document).ready(function() {
 </script>
 
 <div class="row">
-<div class="span3" id="add">
+<div class="span6" id="add">
 <script>
 function loadParameters(){
   var qs = $.url().param()
@@ -27,7 +27,7 @@ function setupForm(){
     })
 }
 function periodTypePicker(id){
-  ['Year','Quarter'].forEach(function(t){
+  ['Year','Quarter','Month'].forEach(function(t){
     $(id).append(sprintf("<option value='%s'>%s</option>", t, t))
   })
 }

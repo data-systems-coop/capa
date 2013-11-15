@@ -9,6 +9,9 @@ import Data.Monoid (mconcat, Sum(..))
 import Data.List
 import Control.Monad.Reader
 
+import Data.Time (fromGregorian , toGregorian, UTCTime(..), getCurrentTime,
+                  addGregorianMonthsClip, addGregorianYearsClip)   
+
 
 patronageComponents :: 
   (Member, WorkPatronage) -> 
@@ -112,3 +115,29 @@ truncateOverflow proportions =
           ([], 0)
           proportions
   in (init truncated) ++ [(last truncated + leftover)]
+     
+--v2: for provided day, provide 2 years back and forward
+-- should take offset back or forward
+--v1: start from current day
+--  find closest quarter or year start prior to today
+--  compute 2 years forward and back. 
+--  enun starting from 2 years back
+--  reverse
+enumeratePeriods :: FiscalCalendarType -> Day -> [FiscalPeriod]
+enumeratePeriods FiscalCalendarType{startf=startMonth, periodTypef=pt} today = 
+  let yearsForward = 5
+      yearsRange = yearsForward * 2
+      (endYear,_,_) = toGregorian $ addGregorianYearsClip yearsForward today
+      end = fromGregorian1 endYear startMonth
+      (stepBack, steps) = 
+        case pt of 
+          Year -> (addGregorianYearsClip (-1), yearsRange * 1)
+          Quarter -> (addGregorianMonthsClip (-3), yearsRange * 3)
+          Month -> (addGregorianMonthsClip (-1), yearsRange * 12)
+      enumStarts d = d : (enumStarts $ stepBack d)
+  in fmap 
+       ((\(yr,mo,_) -> FiscalPeriod (GregorianMonth yr mo) pt) . toGregorian)
+       (take (fromInteger steps) $ enumStarts end)
+     
+fromGregorian1 :: Integer -> Int -> Day
+fromGregorian1 yr mo = fromGregorian yr mo 1
